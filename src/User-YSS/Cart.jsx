@@ -13,20 +13,22 @@ function Cart() {
   const [userUID, setUserUID] = useState(null); 
   const navigate = useNavigate();
   const auth = getAuth(); // Initialize Firebase Auth
+  const [showSignInModal, setShowSignInModal] = useState(false);
 
-  // 🔹 Check authentication state before fetching cart
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserUID(user.uid);
-      } else {
-        setUserUID(null);
-        navigate("/UserSignIn"); // Redirect to login if not authenticated
-      }
-    });
+// 🔹 Check authentication state before fetching cart
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      setUserUID(user.uid);
+      setShowSignInModal(false); // Make sure modal is hidden when user is signed in
+    } else {
+      setUserUID(null);
+      setShowSignInModal(true); // Show modal instead of redirecting
+    }
+  });
 
-    return () => unsubscribe(); // Cleanup on unmount
-  }, [navigate]);
+  return () => unsubscribe(); // Cleanup on unmount
+}, []);
 
   // Fetch all products to get stock information
   useEffect(() => {
@@ -83,10 +85,6 @@ function Cart() {
     return () => unsubscribe();
   }, [userUID]);
 
-  // 🔹 Prevent users from accessing the cart if they are not authenticated
-  if (userUID === null) {
-    return <div className="text-center py-16 bg-gray-50 rounded-lg">Redirecting to sign in...</div>;
-  }
   // Handle Remove Item
   const handleRemove = async (itemId) => {
     if (!userUID) return;
@@ -199,24 +197,29 @@ function Cart() {
 
   // Don't display the cart if loading is true or no cart items are available
   if (loading || cartItems.length === 0) {
-    return <div className="text-center py-16 bg-gray-50 rounded-lg">Loading or No items in cart...</div>;
+    return (
+      <div className="text-center py-16 bg-gray-50 rounded-lg mt-10">
+        <h2 className="text-2xl font-semibold text-gray-700 mb-4 font-cousine">Your cart is empty</h2>
+        <p className="text-gray-500 mb-8">Looks like you haven't added any items to your cart yet.</p>
+        <button
+          onClick={handleContinueShopping}
+          className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors"
+        >
+          Start Shopping
+        </button>
+      </div>
+    );
   }
-
+  
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* Header with back button */}
       <div className="mb-6">
-        <button
-          onClick={handleContinueShopping}
-          className="flex items-center text-gray-600 hover:text-black transition-colors"
-        >
-          <ArrowLeft size={18} className="mr-2" />
-          <span>Continue Shopping</span>
-        </button>
-        <h1 className="text-2xl font-bold mt-10 font-cousine">YOUR CART</h1>
+        <h1 className="text-2xl font-bold mt-20 font-cousine">YOUR CART</h1> 
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
+        
         {/* Cart Items List */}
         <div className="lg:w-2/3">
           <div className="bg-white rounded-lg shadow-sm">
@@ -351,7 +354,36 @@ function Cart() {
           </div>
         </div>
       </div>
+
+      {/* Sign In Modal */}
+      {showSignInModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-lg flex flex-col items-center animate-fadeIn w-96 max-w-lg">
+            <div className="mb-4 text-center">
+              <h2 className="text-large font-semibold font-cousine">Sign in to add items to your cart and place an order</h2>
+            </div>
+            <div className="flex gap-3">
+              <button
+                className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-600"
+                onClick={() => navigate("/UserSignIn")} // Redirect to the sign-in page
+              >
+                Go to Sign In
+              </button>
+              <button
+                className="px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200"
+                onClick={() => setShowSignInModal(false)} // Close the modal
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
     </div>
+
+    
   );
 }
 

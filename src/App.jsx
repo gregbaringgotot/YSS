@@ -22,6 +22,7 @@ import Checkout from './User-YSS/Checkout';
 import Cart from './User-YSS/Cart';
 import AdminQoutes from './Admin-YSS/AdminQuotes';
 import Order from './User-YSS/Order';
+import AdminArchive from './Admin-YSS/AdminArchive';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -85,6 +86,7 @@ function App() {
           <Route path="adminlookbook" element={<AdminLookbook />} />
           <Route path="adminordermanagement" element={<AdminOrderManagement />} />
           <Route path='adminquotes' element={<AdminQoutes />} />
+          <Route path='adminarchive' element={<AdminArchive />} />
         </Route>
 
         {/* Catch-all route for non-existent paths */}

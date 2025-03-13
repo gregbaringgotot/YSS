@@ -42,9 +42,11 @@ function UserSignIn() {
         theme: "dark",
         style: { backgroundColor: "#111", color: "#fff" },
       });
+      
+      navigate("/", { replace: true });
   
       // Redirect after sign-in
-      setTimeout(() => navigate("/dashboard"), 1500);
+      setTimeout(() => navigate("/"), 1500);
     } catch (error) {
       console.error(error); // Debugging
       let errorMessage;
@@ -61,7 +63,7 @@ function UserSignIn() {
   
       toast.error(errorMessage, {
         position: "top-right",
-        autoClose: 3000,
+        autoClose: 1000,
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,

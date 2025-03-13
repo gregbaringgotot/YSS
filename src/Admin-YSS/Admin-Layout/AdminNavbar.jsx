@@ -1,6 +1,14 @@
 import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ShoppingCart, Image, PackageCheck, LogOut, FileText } from "lucide-react"; // Added FileText icon
+import { 
+  LayoutGrid, 
+  ShoppingCart, 
+  Image, 
+  PackageCheck, 
+  LogOut, 
+  FileText,
+  Archive
+} from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../Database/Firebase";
 import Logo from "../admin-assets/admin-logo.png";
@@ -22,30 +30,29 @@ function AdminNavbar({ logOutHandler }) {
   return (
     <div className="flex h-screen">
       {/* Static Sidebar */}
-      <aside className="bg-black text-white w-64 flex flex-col p-4 fixed top-0 left-0 h-full">
-        
+      <aside className="bg-black text-white w-64 flex flex-col fixed top-0 left-0 h-full">
         {/* Logo */}
-        <div className="flex justify-center items-center py-4">
+        <div className="flex flex-col items-center pt-6 pb-2">
           <img src={Logo} alt="Logo" className="w-24 h-24 object-contain" />
         </div>
 
-        {/* Sidebar Title */}
-        <div className="text-center font-bold text-sm mb-10 font-cousine">
+        {/* Brand Name */}
+        <div className="text-center font-bold text-md py-4 border-b border-gray-800 mx-4 mb-6">
           YOUNG SOUL SEEKERS
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex flex-col space-y-4 flex-1 font-cousine">
+        <nav className="flex flex-col px-4 space-y-2 flex-1 font-mono">
           <NavLink
             to="/Admindashboard"
             end
             className={({ isActive }) =>
-              `group flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 ${
-                isActive ? "bg-gray-500 text-white" : "hover:bg-gray-600"
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
               }`
             }
           >
-            <LayoutDashboard className="w-6 h-6" aria-hidden="true" />
+            <LayoutGrid className="w-5 h-5" aria-hidden="true" />
             <span className="text-sm">DASHBOARD</span>
           </NavLink>
 
@@ -53,12 +60,12 @@ function AdminNavbar({ logOutHandler }) {
             to="Adminshop"
             end
             className={({ isActive }) =>
-              `group flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 ${
-                isActive ? "bg-gray-500 text-white" : "hover:bg-gray-600"
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
               }`
             }
           >
-            <ShoppingCart className="w-6 h-6" aria-hidden="true" />
+            <ShoppingCart className="w-5 h-5" aria-hidden="true" />
             <span className="text-sm">SHOP MANAGEMENT</span>
           </NavLink>
 
@@ -66,12 +73,12 @@ function AdminNavbar({ logOutHandler }) {
             to="Adminlookbook"
             end
             className={({ isActive }) =>
-              `group flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 ${
-                isActive ? "bg-gray-500 text-white" : "hover:bg-gray-600"
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
               }`
             }
           >
-            <Image className="w-6 h-6" aria-hidden="true" />
+            <Image className="w-5 h-5" aria-hidden="true" />
             <span className="text-sm">LOOKBOOK MANAGEMENT</span>
           </NavLink>
 
@@ -79,38 +86,50 @@ function AdminNavbar({ logOutHandler }) {
             to="Adminordermanagement"
             end
             className={({ isActive }) =>
-              `group flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 ${
-                isActive ? "bg-gray-500 text-white" : "hover:bg-gray-600"
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
               }`
             }
           >
-            <PackageCheck className="w-6 h-6" aria-hidden="true" />
+            <PackageCheck className="w-5 h-5" aria-hidden="true" />
             <span className="text-sm">ORDER MANAGEMENT</span>
           </NavLink>
 
-          {/* Quote Management Link */}
+          <NavLink
+            to="adminarchive"
+            end
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
+              }`
+            }
+          >
+            <Archive className="w-5 h-5" aria-hidden="true" />
+            <span className="text-sm">ARCHIVE MANAGEMENT</span>
+          </NavLink>
+
           <NavLink
             to="adminquotes"
             end
             className={({ isActive }) =>
-              `group flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 ${
-                isActive ? "bg-gray-500 text-white" : "hover:bg-gray-600"
+              `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
+                isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-800"
               }`
             }
           >
-            <FileText className="w-6 h-6" aria-hidden="true" />
+            <FileText className="w-5 h-5" aria-hidden="true" />
             <span className="text-sm">QUOTE MANAGEMENT</span>
           </NavLink>
         </nav>
 
         {/* Logout Button */}
-        <div className="mt-auto mb-4">
+        <div className="px-4 mb-6 mt-auto">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-300 hover:bg-red-600 w-full"
+            className="flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 hover:bg-gray-800 w-full"
           >
-            <LogOut className="w-6 h-6 text-white" aria-hidden="true" />
-            <span className="text-sm font-cousine">LOG OUT</span>
+            <LogOut className="w-5 h-5 text-gray-300" aria-hidden="true" />
+            <span className="text-sm text-gray-300">LOG OUT</span>
           </button>
         </div>
       </aside>

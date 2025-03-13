@@ -3,10 +3,13 @@ import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon } from 'l
 import { useLocation, useNavigate } from 'react-router-dom';
 import { updateUserAddress, getUserAddress, getShopItem, updateShopItem, clearCart, saveOrder } from '../Database/Firebase';
 import { getFirestore } from 'firebase/firestore';
+
+
 function Checkout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { cartItems, userUID } = location.state || { cartItems: [], userUID: '' };
+  console.log(cartItems, userUID);
 
   // Get today's date in the correct format (yyyy-mm-dd)
   const getTodayDate = () => {
@@ -237,7 +240,7 @@ function Checkout() {
                 <p className="text-gray-700">{address.email}</p>
                 <p className="text-gray-700">{address.street}</p>
                 <p className="text-gray-700">{address.city}</p>
-                <p className="text-gray-700">Delivery Date: {formatDeliveryDate(address.deliveryDate)}</p>
+                <p className="text-gray-700">Date: {formatDeliveryDate(address.deliveryDate)}</p>
               </div>
             </div>
 
@@ -410,7 +413,7 @@ function Checkout() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input
                   type="date"
                   value={newAddress.deliveryDate || getTodayDate()}

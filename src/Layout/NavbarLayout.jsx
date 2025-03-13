@@ -203,11 +203,10 @@ function NavbarLayout() {
               >
                 <User size={24} className="text-black" />
                 {currentUser && (
-                  <span className="absolute bottom-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-black rounded-full"></span>
                 )}
               </button>
 
-              {/* User Dropdown Menu */}
               {/* User Dropdown Menu */}
               {isUserMenuOpen && (
                 <div className="absolute right-0 mt-1 w-48 bg-white shadow-lg rounded-md z-50 overflow-hidden">
@@ -225,8 +224,8 @@ function NavbarLayout() {
                     </>
                   ) : (
                     <>
-                      <NavLink to="/UserSignIn" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Sign In</NavLink>
-                      <NavLink to="/UserSignUp" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Create Account</NavLink>
+                      <NavLink to="/UserSignIn" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 font-cousine">SIGN IN</NavLink>
+                      <NavLink to="/UserSignUp" className="block px-4 py-2 text-gray-700 hover:bg-gray-100 font-cousine">CREATE ACCOUNT</NavLink>
                     </>
                   )}
                 </div>

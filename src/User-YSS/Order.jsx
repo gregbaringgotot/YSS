@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db,auth } from '../Database/Firebase';
+import { db, auth } from '../Database/Firebase';
 
 const Order = () => {
   const [orders, setOrders] = useState([]);
@@ -11,6 +11,21 @@ const Order = () => {
   const navigate = useNavigate();
   const auth = getAuth();
   const user = auth.currentUser;
+
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const ordersData = await fetchOrders();
+        setOrders(ordersData);
+        setIsLoading(false);
+      } catch (err) {
+        setError('Failed to load orders. Please try again.');
+        setIsLoading(false);
+      }
+    };
+
+    loadOrders();
+  }, []);
 
   const fetchOrders = async () => {
     try {
@@ -38,6 +53,12 @@ const Order = () => {
       return [];
     }
   };
+
+  // Handle Continue Shopping
+  const handleContinueShopping = () => {
+    navigate('/shop');
+  };
+
   // Loading state with skeleton loader
   if (isLoading) {
     return (
@@ -64,7 +85,7 @@ const Order = () => {
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="text-center mb-8">
+        <div className="text-center ">
           <h1 className="text-3xl font-bold font-cousine">ORDER DETAILS</h1>
           <p className="text-gray-600 mt-2">View and track your purchase history</p>
         </div>
@@ -85,14 +106,13 @@ const Order = () => {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold font-cousine">ORDER DETAILS</h1>
-          <p className="text-gray-600 mt-2">View and track your purchase history</p>
         </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <p className="text-gray-600 mb-4">You haven't placed any orders yet.</p>
-          <button 
-            onClick={() => navigate('/shop')} 
-            className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded-md transition-colors"
+        <div className="text-center py-16 bg-gray-50 rounded-lg mt-10">
+          <h2 className="text-2xl font-semibold text-gray-700 mb-4 font-cousine">You haven't placed any orders yet</h2>
+          <p className="text-gray-500 mb-8">Looks like you haven't made any purchases yet.</p>
+          <button
+            onClick={handleContinueShopping}
+            className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors"
           >
             Start Shopping
           </button>

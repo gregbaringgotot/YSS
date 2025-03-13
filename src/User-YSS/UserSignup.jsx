@@ -82,7 +82,7 @@ function UserSignUp() {
     <div className="flex min-h-screen bg-gray-100 md:flex-row flex-col">
       <ToastContainer />
       <div className="w-full md:w-1/2 h-screen">
-        <img src={backgroundImage} alt="Background" className="w-full h-full object-cover" />
+        <img src={backgroundImage} alt="Background" className="w-full h-full object-cover mt-8" />
       </div>
       <div className="w-full md:w-1/2 flex justify-center items-center">
         <div className="w-full max-w-md bg-white p-10 rounded-lg shadow-lg mt-10">

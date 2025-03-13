@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { getDocs, doc, getDoc } from "firebase/firestore";
-
+import { getDocs, doc, getDoc, updateDoc,setDoc } from "firebase/firestore";
 import { useCart } from "../Layout/CartContext";
 import CloseIcon from "../assets/Shop-Images/Multiply.png";
-import SizeChartImage from "../assets/Shop-Images/sizechart.png";
+import SizeChartImage from "../assets/Shop-Images/SizeChart.png";
 import { ShoppingCart, CheckCircle, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { addToCart, shopCollection, userCartsCollection,db} from "../Database/Firebase";  
 import { useNavigate } from 'react-router-dom';
 import { useRef, useCallback } from "react";
-import { setDoc } from "firebase/firestore";
 
 function Shop() {
   const [products, setProducts] = useState([]);
@@ -96,10 +94,6 @@ function Shop() {
   }, [searchQuery, selectedCategory, products, sortOption]);
 
   const handleImageClick = async (product) => {
-    if (!userUID) {
-      setShowSignInModal(true); // Show login modal if not logged in
-      return; // Prevent further actions until user logs in
-    }
 
     const availableSizes = Object.entries(product.stocks || {})
       .filter(([size, stock]) => stock > 0)
@@ -130,7 +124,7 @@ function Shop() {
     
     if (!userUID) {
       console.warn("User is not logged in or not in Firestore. Redirecting to sign-in...");
-      navigate("/UserSignIn");
+      setShowSignInModal(true);
       return;
     }
   
@@ -176,7 +170,6 @@ function Shop() {
       console.error("Error adding to cart:", error);
     }
   };
-  
   
   
   const showConfirmationModal = (message) => {
@@ -252,7 +245,7 @@ function Shop() {
       setShowSignInModal(true);
       return;
     }
-
+  
     if (showModal && selectedProduct) {
       const cartItem = {
         id: selectedProduct.id,
@@ -262,21 +255,32 @@ function Shop() {
         quantity: selectedProduct.quantity,
         image: selectedProduct.image[0],
       };
-
+  
       try {
         await addToCart(userUID, cartItem);
       } catch (error) {
         console.error("Error adding to cart:", error);
       }
     }
-
-    navigate('/checkout');
-
+  
+    // Fetch the cart items
+    const cartRef = doc(db, "carts", userUID);
+    const cartSnap = await getDoc(cartRef);
+  
+    let cartItemsData = [];
+    if (cartSnap.exists()) {
+      cartItemsData = cartSnap.data().items || [];
+    }
+  
+    // Pass the cart items and userUID as state to checkout
+    navigate('/checkout', { state: { cartItems: cartItemsData, userUID: userUID } });
+  
+    // Close the modal if it's open
     if (showModal) {
       setShowModal(false);
     }
   };
-
+  
   return (
     <div className="p-8 bg-[#FAFAFA] min-h-screen mt-10">
       {/* Search and Category Bar */}
@@ -687,20 +691,20 @@ function Shop() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-lg flex flex-col items-center animate-fadeIn w-96 max-w-lg">
             <div className="mb-4 text-center">
-              <h2 className="text-xl font-semibold">Please sign in to add items to the cart</h2>
+              <h2 className="text-large font-semibold font-cousine">Sign in to add items to your cart and place an order</h2>
             </div>
             <div className="flex gap-3">
-              <button
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                onClick={() => navigate("/UserSignIn")} // Redirect to the sign-in page
-              >
-                Go to Sign In
-              </button>
-              <button
+            <button
                 className="px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200"
                 onClick={() => setShowSignInModal(false)} // Close the modal
               >
                 Close
+            </button>
+              <button
+                className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-600"
+                onClick={() => navigate("/UserSignIn")} // Redirect to the sign-in page
+              >
+                Go to Sign In
               </button>
             </div>
           </div>
