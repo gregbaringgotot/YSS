@@ -216,7 +216,6 @@ function NavbarLayout() {
                         <p className="font-medium text-gray-800">{currentUser.displayName || "User"}</p>
                         <p className="text-sm text-gray-500 truncate">{currentUser.email}</p>
                       </div>
-                      <NavLink to="/account" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">My Account</NavLink>
                       <NavLink to="/orders" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">My Orders</NavLink>
                       <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100">
                         <LogOut size={16} className="mr-2" /> Sign Out
@@ -302,13 +301,6 @@ function NavbarLayout() {
                     <p className="font-medium text-gray-800">{currentUser.name}</p>
                     <p className="text-sm text-gray-500">{currentUser.email}</p>
                   </div>
-                  <NavLink
-                    to="/account"
-                    className="px-6 py-2 text-gray-600"
-                    onClick={closeMobileMenu}
-                  >
-                    My Account
-                  </NavLink>
                   <button
                     onClick={() => {
                       handleLogout();
@@ -322,20 +314,24 @@ function NavbarLayout() {
                 </>
               ) : (
                 <>
-                  <NavLink
-                    to="/UserSignIn"
-                    className="px-6 py-3 font-cousine font-bold text-gray-700"
-                    onClick={closeMobileMenu}
-                  >
-                    SIGN IN
-                  </NavLink>
-                  <NavLink
-                    to="/UserSignUp"
-                    className="px-6 py-3 font-cousine text-gray-700"
-                    onClick={closeMobileMenu}
-                  >
-                    CREATE ACCOUNT
-                  </NavLink>
+              <NavLink
+                to="/UserSignIn"
+                className={({ isActive }) =>
+                  `px-6 py-3 font-cousine font-bold ${isActive ? 'text-gray-700 bg-gray-100 border-b-2 border-gray-700' : 'text-gray-700'}`
+                }
+                onClick={closeMobileMenu}
+              >
+                SIGN IN
+              </NavLink>
+              <NavLink
+                to="/UserSignUp"
+                className={({ isActive }) =>
+                  `px-6 py-3 font-cousine ${isActive ? 'text-gray-700 bg-gray-100 border-b-2 border-gray-700' : 'text-gray-700'}`
+                }
+                onClick={closeMobileMenu}
+              >
+                CREATE ACCOUNT
+              </NavLink>
                 </>
               )}
             </div>

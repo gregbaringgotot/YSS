@@ -42,11 +42,10 @@ function UserSignIn() {
         theme: "dark",
         style: { backgroundColor: "#111", color: "#fff" },
       });
-      
+
+
       navigate("/", { replace: true });
-  
-      // Redirect after sign-in
-      setTimeout(() => navigate("/"), 1500);
+
     } catch (error) {
       console.error(error); // Debugging
       let errorMessage;

@@ -158,11 +158,15 @@ function Shop() {
         } else {
           updatedCart.items.push(cartItem);
         }
+        
+        // Use updateDoc for existing cart
+        await updateDoc(cartRef, updatedCart);
       } else {
+        // Use setDoc for new cart
         updatedCart = { items: [cartItem] };
+        await setDoc(cartRef, updatedCart);
       }
   
-      await updateDoc(cartRef, updatedCart);
       console.log("Cart updated successfully!");
       setShowModal(false);
       showConfirmationModal("Item added to cart!");

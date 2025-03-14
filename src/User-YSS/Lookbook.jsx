@@ -215,7 +215,7 @@ function Lookbook() {
             </div>
             <div
               onClick={nextImage}
-              className="absolute top-1/2 right-4 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 transition duration-300 cursor-pointer"
+              className="absolute top-1/2 right-4 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 transition duration-300 cursor-pointer "
             >
               <ChevronRight size={24} className="text-black" />
             </div>

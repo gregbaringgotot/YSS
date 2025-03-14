@@ -7,7 +7,7 @@ import {
   PackageCheck, 
   LogOut, 
   FileText,
-  Archive
+  CheckCircle
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../Database/Firebase";
@@ -96,7 +96,7 @@ function AdminNavbar({ logOutHandler }) {
           </NavLink>
 
           <NavLink
-            to="adminarchive"
+            to="adminardeliver"
             end
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 ${
@@ -104,8 +104,8 @@ function AdminNavbar({ logOutHandler }) {
               }`
             }
           >
-            <Archive className="w-5 h-5" aria-hidden="true" />
-            <span className="text-sm">ARCHIVE MANAGEMENT</span>
+            <CheckCircle className="w-5 h-5" aria-hidden="true" />
+            <span className="text-sm">DELIVER PRODUCTS</span>
           </NavLink>
 
           <NavLink
