@@ -1,165 +1,248 @@
-import React, { useState, useEffect } from 'react';
-import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { updateUserAddress, getUserAddress, getShopItem, updateShopItem, clearCart, saveOrder } from '../Database/Firebase';
-import { getFirestore } from 'firebase/firestore';
+"use client"
 
+import { useState, useEffect } from "react"
+import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon, AlertCircle } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
+import {
+  updateUserAddress,
+  getUserAddress,
+  getShopItem,
+  updateShopItem,
+  clearCart,
+  saveOrder,
+} from "../Database/Firebase"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "../Database/Firebase"
 
 function Checkout() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { cartItems, userUID } = location.state || { cartItems: [], userUID: '' };
-  console.log(cartItems, userUID);
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { cartItems, userUID } = location.state || { cartItems: [], userUID: "" }
+  console.log(cartItems, userUID)
 
   // Get today's date in the correct format (yyyy-mm-dd)
   const getTodayDate = () => {
-    const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mm = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
-    const yyyy = today.getFullYear();
-    return `${yyyy}-${mm}-${dd}`;
-  };
+    const today = new Date()
+    const dd = String(today.getDate()).padStart(2, "0")
+    const mm = String(today.getMonth() + 1).padStart(2, "0") // January is 0!
+    const yyyy = today.getFullYear()
+    return `${yyyy}-${mm}-${dd}`
+  }
 
   useEffect(() => {
-    fetchUserAddress();
-  }, [userUID]); // Runs whenever userUID changes
-  
+    fetchUserAddress()
+    fetchProductsStock()
+  }, [userUID]) // Runs whenever userUID changes
 
   const [address, setAddress] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    street: '',
-    city: '',
+    name: "",
+    phone: "",
+    email: "",
+    street: "",
+    city: "",
     deliveryDate: getTodayDate(),
-  });
-  const [isEditing, setIsEditing] = useState(false);
-  const [newAddress, setNewAddress] = useState(address);
-  const [cartItemsState, setCartItems] = useState(cartItems);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  })
+  const [isEditing, setIsEditing] = useState(false)
+  const [newAddress, setNewAddress] = useState(address)
+  const [cartItemsState, setCartItems] = useState(cartItems)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
+  const [products, setProducts] = useState({}) // Store product details including stock info
+
+  // Fetch all products to get stock information
+  const fetchProductsStock = async () => {
+    try {
+      const productsRef = collection(db, "shop") // Assuming your shop collection name is "shop"
+      const querySnapshot = await getDocs(productsRef)
+
+      const productsData = {}
+      querySnapshot.docs.forEach((doc) => {
+        productsData[doc.id] = doc.data()
+      })
+
+      setProducts(productsData)
+
+      // Check if any cart items exceed available stock
+      validateCartStock(productsData)
+    } catch (error) {
+      console.error("Error fetching products:", error)
+      setError("Failed to fetch product information. Please try again.")
+    }
+  }
+
+  // Validate cart items against available stock
+  const validateCartStock = (productsData) => {
+    const updatedCart = [...cartItemsState]
+    let hasStockIssue = false
+
+    updatedCart.forEach((item, index) => {
+      const product = productsData[item.id]
+      if (product && product.stocks) {
+        const availableStock = product.stocks[item.size] || 0
+
+        if (item.quantity > availableStock) {
+          updatedCart[index] = {
+            ...item,
+            quantity: Math.max(1, availableStock),
+            hasStockIssue: true,
+          }
+          hasStockIssue = true
+        }
+      }
+    })
+
+    if (hasStockIssue) {
+      setCartItems(updatedCart)
+      setError("Some items in your cart exceed available stock and have been adjusted.")
+    }
+  }
 
   // Fetch user address when the component mounts
   const fetchUserAddress = async () => {
     if (!userUID) {
-      setError('You must be logged in to place an order.');
-      navigate('/login');
-      return;
+      setError("You must be logged in to place an order.")
+      navigate("/login")
+      return
     }
-  
+
     try {
-      const userProfile = await getUserAddress(userUID);
-      console.log('Fetched user profile:', userProfile); // Debugging
-  
+      const userProfile = await getUserAddress(userUID)
+      console.log("Fetched user profile:", userProfile) // Debugging
+
       if (!userProfile) {
-        setError('No user data found. Please enter your details.');
-        return;
+        setError("No user data found. Please enter your details.")
+        return
       }
-  
+
       const populatedAddress = {
-        name: userProfile.name || '',
-        phone: userProfile.phone || '',
-        email: userProfile.email || '',
-        street: userProfile.street || '',
-        city: userProfile.city || '',
+        name: userProfile.name || "",
+        phone: userProfile.phone || "",
+        email: userProfile.email || "",
+        street: userProfile.street || "",
+        city: userProfile.city || "",
         deliveryDate: getTodayDate(),
-      };
-  
-      console.log('Populated Address:', populatedAddress); // Debugging
-  
-      setAddress(populatedAddress);
-      setNewAddress(populatedAddress);
+      }
+
+      console.log("Populated Address:", populatedAddress) // Debugging
+
+      setAddress(populatedAddress)
+      setNewAddress(populatedAddress)
     } catch (error) {
-      console.error('Error fetching user address:', error);
-      setError('Failed to fetch address. Please try again.');
+      console.error("Error fetching user address:", error)
+      setError("Failed to fetch address. Please try again.")
     }
-  };
-  
-  
+  }
+
   const handleEditClick = () => {
-    setIsEditing(true);
-    setNewAddress({ ...address });
-  };
+    setIsEditing(true)
+    setNewAddress({ ...address })
+  }
 
   const handleSaveClick = async () => {
     if (!newAddress.name || !newAddress.phone || !newAddress.email || !newAddress.street || !newAddress.city) {
-      setError('All fields are required.');
-      return;
+      setError("All fields are required.")
+      return
     }
 
     try {
       const updatedAddress = {
         ...newAddress,
         deliveryDate: newAddress.deliveryDate || getTodayDate(),
-      };
-      await updateUserAddress(userUID, updatedAddress);
-      setAddress(updatedAddress);
-      setIsEditing(false);
-      setError('');
+      }
+      await updateUserAddress(userUID, updatedAddress)
+      setAddress(updatedAddress)
+      setIsEditing(false)
+      setError("")
     } catch (error) {
-      console.error('Error updating user address:', error);
-      setError('Failed to update address. Please try again.');
+      console.error("Error updating user address:", error)
+      setError("Failed to update address. Please try again.")
     }
-  };
+  }
 
   const handleClose = () => {
-    setIsEditing(false);
-    setError('');
-  };
+    setIsEditing(false)
+    setError("")
+  }
 
   const incrementQuantity = (itemId) => {
-    const updatedCart = cartItemsState.map((item) =>
-      item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
-    );
-    setCartItems(updatedCart);
-  };
+    const updatedCart = cartItemsState.map((item) => {
+      if (item.id === itemId) {
+        const product = products[item.id]
+        const availableStock = product?.stocks?.[item.size] || 0
+
+        // Only increment if we haven't reached the stock limit
+        if (item.quantity < availableStock) {
+          return { ...item, quantity: item.quantity + 1 }
+        } else {
+          // Set a flag to show stock limit message
+          return { ...item, hasStockIssue: true }
+        }
+      }
+      return item
+    })
+
+    setCartItems(updatedCart)
+  }
 
   const decrementQuantity = (itemId) => {
     const updatedCart = cartItemsState.map((item) =>
-      item.id === itemId && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
-    );
-    setCartItems(updatedCart);
-  };
+      item.id === itemId && item.quantity > 1 ? { ...item, quantity: item.quantity - 1, hasStockIssue: false } : item,
+    )
+    setCartItems(updatedCart)
+  }
 
-  const subtotal = cartItemsState.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cartItemsState.reduce((acc, item) => acc + item.price * item.quantity, 0)
+
+  // Check if any item exceeds available stock
+  const hasStockIssue = cartItemsState.some((item) => {
+    const product = products[item.id]
+    const availableStock = product?.stocks?.[item.size] || 0
+    return item.quantity > availableStock
+  })
 
   const handleCheckout = async () => {
     if (!userUID) {
-      setError('You must be logged in to place an order.');
-      navigate('/login');
-      return;
+      setError("You must be logged in to place an order.")
+      navigate("/login")
+      return
     }
-  
-    console.log('Checking address before checkout:', address); // Debugging
-  
+
+    console.log("Checking address before checkout:", address) // Debugging
+
     if (!address.name || !address.phone || !address.email || !address.street || !address.city) {
-      setError('Please fill out your shipping details before placing an order.');
-      return;
+      setError("Please fill out your shipping details before placing an order.")
+      return
     }
-  
+
     if (cartItemsState.length === 0) {
-      setError('Your cart is empty.');
-      return;
+      setError("Your cart is empty.")
+      return
     }
-  
-    setIsLoading(true);
-    setError('');
-    setSuccessMessage('');
-  
+
+    // Check stock availability one more time before proceeding
+    if (hasStockIssue) {
+      setError("Some items exceed available stock. Please adjust quantities before proceeding.")
+      return
+    }
+
+    setIsLoading(true)
+    setError("")
+    setSuccessMessage("")
+
     try {
       for (const cartItem of cartItemsState) {
-        const shopItem = await getShopItem(cartItem.id);
+        const shopItem = await getShopItem(cartItem.id)
         if (shopItem) {
-          const updatedStocks = { ...shopItem.stocks };
+          const updatedStocks = { ...shopItem.stocks }
           if (updatedStocks[cartItem.size] < cartItem.quantity) {
-            throw new Error(`Not enough stock for ${cartItem.name} (Size: ${cartItem.size}).`);
+            throw new Error(`Not enough stock for ${cartItem.name} (Size: ${cartItem.size}).`)
           }
-          updatedStocks[cartItem.size] -= cartItem.quantity;
-          await updateShopItem(cartItem.id, { stocks: updatedStocks });
+          updatedStocks[cartItem.size] -= cartItem.quantity
+          await updateShopItem(cartItem.id, { stocks: updatedStocks })
         }
       }
-  
+
       const orderData = {
         userUID,
         items: cartItemsState,
@@ -167,37 +250,42 @@ function Checkout() {
         subtotal,
         status: "Placed",
         timestamp: new Date().toISOString(),
-      };
-  
-      console.log('Final order data:', orderData); // Debugging
-  
-      await saveOrder(orderData);
-      await clearCart(userUID);
-  
-      setSuccessMessage('Order placed successfully!');
+      }
+
+      console.log("Final order data:", orderData) // Debugging
+
+      await saveOrder(orderData)
+      await clearCart(userUID)
+
+      setSuccessMessage("Order placed successfully!")
       setTimeout(() => {
-        navigate('/order-confirmation', { state: { cartItems: cartItemsState, address } });
-      }, 2000);
+        navigate("/order-confirmation", { state: { cartItems: cartItemsState, address } })
+      }, 2000)
     } catch (error) {
-      console.error('Error during checkout:', error);
-      setError(error.message || 'An error occurred during checkout. Please try again.');
+      console.error("Error during checkout:", error)
+      setError(error.message || "An error occurred during checkout. Please try again.")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
-  
+  }
 
   // Format date as "Month day, year" (e.g., February 20, 2025)
   const formatDeliveryDate = (date) => {
-    if (!date) return 'Not specified';
+    if (!date) return "Not specified"
     try {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      return new Date(date).toLocaleDateString(undefined, options);
+      const options = { year: "numeric", month: "long", day: "numeric" }
+      return new Date(date).toLocaleDateString(undefined, options)
     } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
+      console.error("Error formatting date:", error)
+      return "Invalid date"
     }
-  };
+  }
+
+  // Get available stock for an item
+  const getAvailableStock = (item) => {
+    const product = products[item.id]
+    return product?.stocks?.[item.size] || 0
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen py-8 mt-10">
@@ -205,11 +293,7 @@ function Checkout() {
         <h1 className="text-2xl font-bold mb-4 font-cousine">CHECKOUT</h1>
 
         {/* Error Message */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
+        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
         {/* Success Message */}
         {successMessage && (
@@ -251,35 +335,53 @@ function Checkout() {
               </h2>
               <div className="border-t pt-4">
                 {cartItemsState.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between mb-4">
-                    <div className="flex items-center">
-                      <div className="h-20 w-20 bg-gray-200 rounded-md mr-4 flex items-center justify-center">
-                        <img
-                          src={item.image || item.imageUrl}
-                          alt={item.name}
-                          className="object-cover h-full w-full rounded-md"
-                        />
+                  <div key={item.id} className="flex flex-col mb-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="h-20 w-20 bg-gray-200 rounded-md mr-4 flex items-center justify-center">
+                          <img
+                            src={item.image || item.imageUrl}
+                            alt={item.name}
+                            className="object-cover h-full w-full rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-gray-600">Size: {item.size?.toUpperCase() || "Default"}</p>
+                          <p className="text-lg font-semibold">₱{item.price}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-lg font-semibold">₱{item.price}</p>
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center border rounded-md">
+                          <button
+                            onClick={() => decrementQuantity(item.id)}
+                            className="px-3 py-1 text-gray-500 hover:bg-gray-100"
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="px-4 py-1 font-medium">{item.quantity}</span>
+                          <button
+                            onClick={() => incrementQuantity(item.id)}
+                            className="px-3 py-1 text-gray-500 hover:bg-gray-100"
+                            disabled={item.quantity >= getAvailableStock(item)}
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {item.quantity} of {getAvailableStock(item)} available
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center border rounded-md">
-                      <button
-                        onClick={() => decrementQuantity(item.id)}
-                        className="px-3 py-1 text-gray-500 hover:bg-gray-100"
-                      >
-                        <Minus size={16} />
-                      </button>
-                      <span className="px-4 py-1 font-medium">{item.quantity}</span>
-                      <button
-                        onClick={() => incrementQuantity(item.id)}
-                        className="px-3 py-1 text-gray-500 hover:bg-gray-100"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
+
+                    {/* Stock warning */}
+                    {item.hasStockIssue && (
+                      <div className="mt-2 bg-red-50 text-red-600 p-2 rounded text-sm flex items-center">
+                        <AlertCircle size={16} className="mr-2" />
+                        Only {getAvailableStock(item)} items in stock for this size.
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -315,7 +417,9 @@ function Checkout() {
                   <p>₱{cartItemsState.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
                 </div>
                 <div className="flex justify-between font-medium">
-                  <p>SUBTOTAL ({cartItemsState.length} ITEM{cartItemsState.length > 1 ? 'S' : ''}):</p>
+                  <p>
+                    SUBTOTAL ({cartItemsState.length} ITEM{cartItemsState.length > 1 ? "S" : ""}):
+                  </p>
                   <p>₱{subtotal.toFixed(2)}</p>
                 </div>
                 <div className="flex justify-between">
@@ -332,12 +436,24 @@ function Checkout() {
                     <p>₱{subtotal.toFixed(2)}</p>
                   </div>
                 </div>
+
+                {hasStockIssue && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded text-sm flex items-center mt-3">
+                    <AlertCircle size={16} className="mr-2" />
+                    Some items exceed available stock. Please adjust quantities.
+                  </div>
+                )}
+
                 <button
                   onClick={handleCheckout}
-                  disabled={isLoading}
-                  className="w-full bg-black hover:bg-gray-800 text-white font-medium py-3 rounded-md mt-4 transition duration-150 disabled:bg-gray-400"
+                  disabled={isLoading || hasStockIssue}
+                  className={`w-full font-medium py-3 rounded-md mt-4 transition duration-150 flex items-center justify-center ${
+                    isLoading || hasStockIssue
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-black hover:bg-gray-800 text-white"
+                  }`}
                 >
-                  {isLoading ? 'Placing Order...' : 'Place Order'}
+                  {isLoading ? "Placing Order..." : hasStockIssue ? "Adjust Quantities First" : "Place Order"}
                 </button>
               </div>
             </div>
@@ -442,7 +558,8 @@ function Checkout() {
         </div>
       )}
     </div>
-  );
+  )
 }
 
-export default Checkout;
+export default Checkout
+

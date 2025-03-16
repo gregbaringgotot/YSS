@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ShoppingBag, Users, CreditCard, TrendingUp, DollarSign } from "lucide-react"
+import { ShoppingBag, Users, CreditCard, TrendingUp, ClipboardList } from "lucide-react"
 import { collection, getDocs, onSnapshot, orderBy, limit, query } from "firebase/firestore"
 import { db } from "../Database/Firebase"
 import { Link } from "react-router-dom"
 
 // Import Recharts components - a more reliable alternative to Google Charts
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true)
@@ -19,8 +19,11 @@ const AdminDashboard = () => {
     bestSellings: [],
     recentOrders: [],
     monthlySalesData: [],
-    monthlyExpensesData: [],
+    weeklySalesData: [],
   })
+
+  // Colors for pie chart
+  const COLORS = ["#000000", "#666666", "#999999"]
 
   // Fetch orders data from Firebase
   useEffect(() => {
@@ -70,7 +73,7 @@ const AdminDashboard = () => {
 
         const bestSellings = Object.values(productCountMap)
           .sort((a, b) => b.orders - a.orders)
-          .slice(0, 3)
+          .slice(0, 4)
 
         // Get recent orders - sort by timestamp descending
         const recentOrders = [...ordersData]
@@ -84,7 +87,7 @@ const AdminDashboard = () => {
 
         // Prepare monthly sales and expenses data for charts
         const monthlySalesData = prepareMonthlySalesData(ordersData)
-        const monthlyExpensesData = prepareMonthlyExpensesData(ordersData)
+        const weeklySalesData = prepareWeeklySalesData(ordersData)
 
         setDashboardData({
           totalSales,
@@ -93,7 +96,7 @@ const AdminDashboard = () => {
           bestSellings,
           recentOrders,
           monthlySalesData,
-          monthlyExpensesData,
+          weeklySalesData,
         })
 
         // Set up real-time listener for orders
@@ -147,56 +150,69 @@ const AdminDashboard = () => {
     }))
   }
 
-  // Prepare monthly expenses data for Recharts
-  const prepareMonthlyExpensesData = (orders) => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    const monthlyExpenses = Array(12).fill(0)
+  // Prepare weekly sales data for Recharts
+  const prepareWeeklySalesData = (orders) => {
+    // Initialize days of the week
+    const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const weeklySales = Array(7).fill(0)
+
+    // Get current date and calculate the start of the week (Sunday)
+    const currentDate = new Date()
+    const startOfWeek = new Date(currentDate)
+    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+    startOfWeek.setHours(0, 0, 0, 0) // Set to beginning of the day
 
     // Process each order
     orders.forEach((order) => {
       if (order.timestamp) {
-        const date = new Date(order.timestamp)
-        if (!isNaN(date.getTime())) {
-          const month = date.getMonth()
-
-          // Calculate shirt-related expenses (40% of shirt item price)
-          order.items?.forEach((item) => {
-            if (item.name?.toLowerCase().includes("shirt")) {
-              monthlyExpenses[month] += (item.price || 0) * 0.4 * (item.quantity || 1)
-            }
-          })
+        const orderDate = new Date(order.timestamp)
+        // Check if order is from current week
+        if (orderDate >= startOfWeek && orderDate <= currentDate) {
+          const dayOfWeek = orderDate.getDay() // 0 for Sunday, 6 for Saturday
+          weeklySales[dayOfWeek] += order.subtotal || 0
         }
       }
     })
 
-    // Add some random data if no expenses found
-    if (monthlyExpenses.every((expense) => expense === 0)) {
-      for (let i = 0; i < 12; i++) {
-        monthlyExpenses[i] = Math.floor(Math.random() * 1000) + 500
-      }
-    }
-
-    // Format data for Recharts
-    return months.map((month, index) => ({
-      name: month,
-      expenses: monthlyExpenses[index],
+    // Format data for Recharts - don't add random data, use actual data
+    return daysOfWeek.map((day, index) => ({
+      name: day,
+      sales: weeklySales[index],
     }))
+  }
+
+  // Custom tooltip for pie chart to show percentage
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]
+      const totalValue = dashboardData.monthlyExpensesData.reduce((sum, item) => sum + item.value, 0)
+      const percentage = ((data.value / totalValue) * 100).toFixed(2)
+
+      return (
+        <div className="bg-white p-3 border border-gray-200 shadow-md rounded-md">
+          <p className="font-medium">{data.name}</p>
+          <p className="text-sm">₱ {data.value.toLocaleString()}</p>
+          <p className="text-sm font-bold">{percentage}% of expenses</p>
+        </div>
+      )
+    }
+    return null
   }
 
   // Function to get status color for recent orders
   const getStatusColor = (status) => {
     switch (status) {
       case "Delivered":
-        return "bg-green-100 text-green-800"
+        return "bg-gray-100 text-black-800"
       case "In Transit":
       case "Shipped":
-        return "bg-blue-100 text-blue-800"
+        return "bg-gray-100 text-black-800"
       case "Processing":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-gray-100 text-black-800"
       case "Cancelled":
-        return "bg-red-100 text-red-800"
+        return "bg-gray-100 text-black-800"
       case "Pending":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-black-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -262,17 +278,49 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Charts with Animation */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Monthly Sales Chart */}
+      <div className="bg-white p-4 rounded-lg shadow transition-all duration-300 hover:shadow-lg mb-6">
+        <div className="flex items-center mb-4">
+          <TrendingUp size={20} className="text-black mr-2" />
+          <h2 className="text-lg font-bold font-cousine">MONTHLY SALES</h2>
+        </div>
+        {dashboardData.monthlySalesData.length > 0 ? (
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dashboardData.monthlySalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="name" />
+                <YAxis tickFormatter={formatCurrency} />
+                <Tooltip formatter={(value) => [`₱ ${value.toLocaleString()}`, "Sales"]} />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="#000000"
+                  fill="#000000"
+                  fillOpacity={0.2}
+                  strokeWidth={3}
+                  activeDot={{ r: 8 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="flex justify-center items-center h-64 text-gray-500">No monthly sales data available</div>
+        )}
+      </div>
+
+      {/* Two Column Layout for Expenses Pie Chart and Best Selling Products */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Weekly Sales Chart */}
         <div className="bg-white p-4 rounded-lg shadow transition-all duration-300 hover:shadow-lg">
           <div className="flex items-center mb-4">
             <TrendingUp size={20} className="text-black mr-2" />
-            <h2 className="text-lg font-bold">Monthly Sales</h2>
+            <h2 className="text-lg font-bold font-cousine">WEEKLY SALES</h2>
           </div>
-          {dashboardData.monthlySalesData.length > 0 ? (
-            <div className="h-[300px]">
+          {dashboardData.weeklySalesData && dashboardData.weeklySalesData.length > 0 ? (
+            <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dashboardData.monthlySalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={dashboardData.weeklySalesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="name" />
                   <YAxis tickFormatter={formatCurrency} />
@@ -290,96 +338,53 @@ const AdminDashboard = () => {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex justify-center items-center h-64 text-gray-500">No monthly sales data available</div>
+            <div className="flex justify-center items-center h-64 text-gray-500">No weekly sales data available</div>
           )}
         </div>
 
+        {/* Best Selling Products */}
         <div className="bg-white p-4 rounded-lg shadow transition-all duration-300 hover:shadow-lg">
           <div className="flex items-center mb-4">
-            <DollarSign size={20} className="text-black mr-2" />
-            <h2 className="text-lg font-bold">Shirt Expenses</h2>
+            <ShoppingBag size={20} className="text-black mr-2" />
+            <h2 className="text-lg font-bold font-cousine">BEST SELLING PRODUCTS</h2>
           </div>
-          {dashboardData.monthlyExpensesData.length > 0 ? (
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardData.monthlyExpensesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={formatCurrency} />
-                  <Tooltip formatter={(value) => [`₱ ${value.toLocaleString()}`, "Expenses"]} />
-                  <Bar dataKey="expenses" fill="#333333" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex justify-center items-center h-64 text-gray-500">No expense data available</div>
-          )}
+          <div className="overflow-y-auto" style={{ maxHeight: "350px" }}>
+            {dashboardData.bestSellings.length > 0 ? (
+              dashboardData.bestSellings.map((item, index) => (
+                <div key={index} className="flex items-center p-3 border-b last:border-b-0 hover:bg-gray-50">
+                  <div className="h-16 w-16 flex-shrink-0 mr-4">
+                    <img
+                      src={item.image || "/placeholder.svg"}
+                      alt={item.name}
+                      className="h-full w-full rounded-md object-cover"
+                      onError={(e) => {
+                        e.target.src = "product-placeholder.png"
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{item.name}</p>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-sm text-gray-500">{item.orders} orders</p>
+                      <p className="font-bold">₱ {item.revenue.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">No sales data available yet</div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Best Selling Section */}
-      <div className="bg-white p-6 rounded-lg shadow mb-6 transition-all duration-300 hover:shadow-lg">
-        <h2 className="text-lg font-bold mb-4 font-cousine">BEST SELLINGS PRODUCTS</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Product
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Orders
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Revenue
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {dashboardData.bestSellings.length > 0 ? (
-                dashboardData.bestSellings.map((item, index) => (
-                  <tr key={index} className="hover:bg-gray-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0">
-                          <img
-                            src={item.image || "/placeholder.svg"}
-                            alt={item.name}
-                            className="h-10 w-10 rounded-md object-cover"
-                            onError={(e) => {
-                              e.target.src = "product-placeholder.png"
-                            }}
-                          />
-                        </div>
-                        <div className="ml-4">
-                          <div className="font-medium text-gray-900">{item.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-gray-900">{item.orders}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-gray-900">₱ {item.revenue.toLocaleString()}</div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
-                    No sales data available yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Recent Orders - Now dynamically populated */}
+      {/* Recent Orders */}
       <div className="bg-white p-6 rounded-lg shadow transition-all duration-300 hover:shadow-lg">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold font-cousine">RECENT ORDERS</h2>
+          <div className="flex items-center">
+            <ClipboardList size={20} className="text-black mr-2" />
+            <h2 className="text-lg font-bold font-cousine">RECENT ORDERS</h2>
+          </div>
           <button className="text-black hover:text-gray-400 text-sm font-bold underline">
             <Link to="adminordermanagement">View All</Link>
           </button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Check,
   X,
@@ -16,6 +16,8 @@ import {
   ArrowUp,
   ArrowDown,
   Mail,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react"
 import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "../Database/Firebase" // Adjust the import path as needed
@@ -32,7 +34,25 @@ function AdminOrderManagement() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [sortBy, setSortBy] = useState("date")
   const [sortDirection, setSortDirection] = useState("desc")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [orderToDelete, setOrderToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const sortDropdownRef = useRef(null)
   const ordersPerPage = 5
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
+        setShowSortDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   // Fetch all orders from Firestore
   const fetchOrders = async () => {
@@ -79,6 +99,7 @@ function AdminOrderManagement() {
       setSortBy(field)
       setSortDirection("asc")
     }
+    setShowSortDropdown(false)
   }
 
   // Filter, search, and sort orders
@@ -145,6 +166,36 @@ function AdminOrderManagement() {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber)
 
+  // Function to initiate delete process
+  const initiateDeleteOrder = (order) => {
+    setOrderToDelete(order)
+    setShowDeleteModal(true)
+  }
+
+  // Function to delete an order from the database
+  const deleteOrder = async () => {
+    if (!orderToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const orderRef = doc(db, "orders", orderToDelete.id)
+      await deleteDoc(orderRef)
+
+      // Update local state by removing the deleted order
+      const updatedOrders = orders.filter((order) => order.id !== orderToDelete.id)
+      setOrders(updatedOrders)
+
+      alert("Order deleted successfully")
+    } catch (error) {
+      console.error("Error deleting order:", error)
+      alert("Failed to delete order. Please try again.")
+    } finally {
+      setShowDeleteModal(false)
+      setOrderToDelete(null)
+      setIsDeleting(false)
+    }
+  }
+
   // Update the updateOrderStatus function
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -156,28 +207,11 @@ function AdminOrderManagement() {
       // Update local state while preserving other properties
       const updatedOrders = orders.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order))
       setOrders(updatedOrders)
+
+      alert("Status updated successfully")
     } catch (error) {
       console.error("Error updating order status:", error)
       alert("Failed to update order status. Please try again.")
-    }
-  }
-
-  // Function to delete an order from the database
-  const deleteOrder = async (orderId) => {
-    if (window.confirm("Are you sure you want to delete this order? This action cannot be undone.")) {
-      try {
-        const orderRef = doc(db, "orders", orderId)
-        await deleteDoc(orderRef)
-
-        // Update local state by removing the deleted order
-        const updatedOrders = orders.filter((order) => order.id !== orderId)
-        setOrders(updatedOrders)
-
-        alert("Order deleted successfully")
-      } catch (error) {
-        console.error("Error deleting order:", error)
-        alert("Failed to delete order. Please try again.")
-      }
     }
   }
 
@@ -185,17 +219,17 @@ function AdminOrderManagement() {
   const getStatusColor = (status) => {
     switch (status) {
       case "Pending":
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-100 text-black-800"
       case "Processing":
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-100 text-black-800"
       case "Shipped":
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-100 text-black-800"
       case "Cancelled":
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-100 text-black-800"
       case "Delivered":
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-100 text-black-800"
       default:
-        return "bg-gray-200 text-white-800"
+        return "bg-gray-200 text-black-800"
     }
   }
 
@@ -245,15 +279,102 @@ function AdminOrderManagement() {
     )
   }
 
+  // Delete Confirmation Modal
+  const DeleteConfirmationModal = () => {
+    if (!orderToDelete) return null
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className="flex items-center mb-4 text-red-600">
+            <AlertTriangle className="h-6 w-6 mr-2" />
+            <h3 className="text-lg font-semibold">Confirm Deletion</h3>
+          </div>
+
+          <div className="mb-6">
+            <p className="mb-2">Are you sure you want to delete this order?</p>
+            <div className="bg-red-50 p-3 rounded-md text-sm text-red-800">
+              This action cannot be undone. The order will be permanently removed from the system.
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={deleteOrder}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center"
+            >
+              {isDeleting ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={16} className="mr-2" />
+                  Delete Order
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // View Order Details Modal with status update buttons
   const OrderDetailsModal = ({ order, onClose }) => {
     const statusOptions = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]
     const [showDatePicker, setShowDatePicker] = useState(false)
     const [selectedDate, setSelectedDate] = useState("")
     const [currentOrder, setCurrentOrder] = useState(order)
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+    const [updatingStatusId, setUpdatingStatusId] = useState(null)
+    const [isUpdatingDate, setIsUpdatingDate] = useState(false)
+    const [isSendingEmail, setIsSendingEmail] = useState(false)
+
+    // Update order status with loading state
+    const handleUpdateStatus = async (orderId, newStatus) => {
+      setIsUpdatingStatus(true)
+      setUpdatingStatusId(newStatus)
+      try {
+        const orderRef = doc(db, "orders", orderId)
+        await updateDoc(orderRef, {
+          status: newStatus,
+        })
+
+        // Update local state while preserving other properties
+        const updatedOrders = orders.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order))
+        setOrders(updatedOrders)
+
+        // Update the current order being viewed in the modal
+        setCurrentOrder({
+          ...currentOrder,
+          status: newStatus,
+        })
+
+        alert("Status updated successfully")
+      } catch (error) {
+        console.error("Error updating order status:", error)
+        alert("Failed to update order status. Please try again.")
+      } finally {
+        setIsUpdatingStatus(false)
+        setUpdatingStatusId(null)
+      }
+    }
 
     // Update delivery date function
     const updateDeliveryDate = async () => {
+      if (!selectedDate) return
+
+      setIsUpdatingDate(true)
       try {
         const orderRef = doc(db, "orders", order.id)
         await updateDoc(orderRef, {
@@ -278,11 +399,14 @@ function AdminOrderManagement() {
       } catch (error) {
         console.error("Error updating delivery date:", error)
         alert("Failed to update delivery date. Please try again.")
+      } finally {
+        setIsUpdatingDate(false)
       }
     }
 
     // Send order confirmation email function
     const sendOrderConfirmationEmail = async () => {
+      setIsSendingEmail(true)
       try {
         const response = await fetch("http://localhost:5000/send-order-email", {
           method: "POST",
@@ -310,6 +434,8 @@ function AdminOrderManagement() {
       } catch (error) {
         console.error("Error sending email:", error)
         alert("Failed to send order details email. Please try again.")
+      } finally {
+        setIsSendingEmail(false)
       }
     }
 
@@ -335,8 +461,8 @@ function AdminOrderManagement() {
                 </p>
                 <p className="flex justify-between">
                   <span className="text-gray-600">Status:</span>
-                  <span className={`font-medium px-3 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
-                    {order.status || "Pending"}
+                  <span className={`font-medium px-3 py-1 rounded-full text-xs ${getStatusColor(currentOrder.status)}`}>
+                    {currentOrder.status || "Pending"}
                   </span>
                 </p>
                 <p className="flex justify-between">
@@ -390,18 +516,19 @@ function AdminOrderManagement() {
                   {statusOptions.map((status) => (
                     <button
                       key={status}
-                      onClick={() => {
-                        updateOrderStatus(order.id, status)
-                        setCurrentOrder({ ...currentOrder, status })
-                      }}
-                      disabled={currentOrder.status === status}
+                      onClick={() => handleUpdateStatus(order.id, status)}
+                      disabled={currentOrder.status === status || isUpdatingStatus}
                       className={`px-3 py-1.5 text-sm rounded-md transition-colors flex items-center ${
                         currentOrder.status === status
                           ? "bg-gray-300 text-gray-700 cursor-not-allowed"
                           : getStatusButtonColor(status)
                       }`}
                     >
-                      {getStatusIcon(status)}
+                      {isUpdatingStatus && updatingStatusId === status ? (
+                        <RefreshCw size={16} className="mr-1 animate-spin" />
+                      ) : (
+                        getStatusIcon(status)
+                      )}
                       <span className="ml-1">{status}</span>
                     </button>
                   ))}
@@ -429,6 +556,7 @@ function AdminOrderManagement() {
                   </div>
                   <button
                     onClick={() => setShowDatePicker(!showDatePicker)}
+                    disabled={isUpdatingDate}
                     className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center"
                   >
                     {showDatePicker ? <X className="mr-2 h-4 w-4" /> : <Clock className="mr-2 h-4 w-4" />}
@@ -449,10 +577,17 @@ function AdminOrderManagement() {
                     <div className="flex justify-end">
                       <button
                         onClick={updateDeliveryDate}
-                        disabled={!selectedDate}
-                        className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        disabled={!selectedDate || isUpdatingDate}
+                        className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
                       >
-                        Save Date
+                        {isUpdatingDate ? (
+                          <>
+                            <RefreshCw size={16} className="mr-2 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          "Save Date"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -472,11 +607,21 @@ function AdminOrderManagement() {
                 <div className="flex flex-col space-y-3">
                   <p className="text-sm text-gray-600">Send order details and updates to the customer via email.</p>
                   <button
-                    onClick={() => sendOrderConfirmationEmail()}
+                    onClick={sendOrderConfirmationEmail}
+                    disabled={isSendingEmail}
                     className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center justify-center"
                   >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Send Order Details Email
+                    {isSendingEmail ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Sending Email...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Send Order Details Email
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -533,8 +678,9 @@ function AdminOrderManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="w-16 h-16 border-4 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-bold text-gray-700">Loading Orders...</h2>
       </div>
     )
   }
@@ -590,49 +736,48 @@ function AdminOrderManagement() {
             </div>
 
             {/* Sort Dropdown */}
-            <div className="relative inline-block">
+            <div className="relative inline-block" ref={sortDropdownRef}>
               <button
                 className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md"
-                onClick={() => document.getElementById("sort-dropdown").classList.toggle("hidden")}
+                onClick={() => setShowSortDropdown(!showSortDropdown)}
               >
                 <Filter size={16} />
                 <span>Sort</span>
               </button>
-              <div
-                id="sort-dropdown"
-                className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border"
-              >
-                <div className="py-1">
-                  <button
-                    onClick={() => handleSort("date")}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
-                  >
-                    <span>Date</span>
-                    {getSortIcon("date")}
-                  </button>
-                  <button
-                    onClick={() => handleSort("customer")}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
-                  >
-                    <span>Customer Name</span>
-                    {getSortIcon("customer")}
-                  </button>
-                  <button
-                    onClick={() => handleSort("total")}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
-                  >
-                    <span>Total Amount</span>
-                    {getSortIcon("total")}
-                  </button>
-                  <button
-                    onClick={() => handleSort("status")}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
-                  >
-                    <span>Status</span>
-                    {getSortIcon("status")}
-                  </button>
+              {showSortDropdown && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border">
+                  <div className="py-1">
+                    <button
+                      onClick={() => handleSort("date")}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
+                    >
+                      <span>Date</span>
+                      {getSortIcon("date")}
+                    </button>
+                    <button
+                      onClick={() => handleSort("customer")}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
+                    >
+                      <span>Customer Name</span>
+                      {getSortIcon("customer")}
+                    </button>
+                    <button
+                      onClick={() => handleSort("total")}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
+                    >
+                      <span>Total Amount</span>
+                      {getSortIcon("total")}
+                    </button>
+                    <button
+                      onClick={() => handleSort("status")}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center justify-between"
+                    >
+                      <span>Status</span>
+                      {getSortIcon("status")}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -683,13 +828,12 @@ function AdminOrderManagement() {
                       >
                         <FileText size={20} />
                       </button>
-                      {/* Status update buttons removed */}
                       <button
-                        onClick={() => deleteOrder(order.id)}
+                        onClick={() => initiateDeleteOrder(order)}
                         className="text-red-500 hover:text-red-700 p-1"
                         title="Delete Order"
                       >
-                        <X size={20} />
+                        <Trash2 size={20} />
                       </button>
                     </td>
                   </tr>
@@ -742,6 +886,9 @@ function AdminOrderManagement() {
 
       {/* Order Details Modal */}
       {selectedOrder && <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && <DeleteConfirmationModal />}
     </div>
   )
 }

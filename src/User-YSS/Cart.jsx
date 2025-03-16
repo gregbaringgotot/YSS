@@ -1,199 +1,234 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Minus, Plus, ChevronDown } from 'lucide-react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot, collection, getDocs } from "firebase/firestore";
-import { db } from "../Database/Firebase"; // Adjust the import path as needed
+"use client"
+
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { Trash2, Minus, Plus, ChevronDown } from "lucide-react"
+import { getAuth, onAuthStateChanged } from "firebase/auth"
+import { doc, getDoc, updateDoc, onSnapshot, collection, getDocs } from "firebase/firestore"
+import { db } from "../Database/Firebase" // Adjust the import path as needed
 
 function Cart() {
-  const [cartItems, setCartItems] = useState([]); // Local state for cart items
-  const [products, setProducts] = useState({}); // Store product details including stock info
-  const [showSizeDropdown, setShowSizeDropdown] = useState(null); // Track which item has open dropdown
-  const [loading, setLoading] = useState(true); // Loading state
-  const [userUID, setUserUID] = useState(null); 
-  const navigate = useNavigate();
-  const auth = getAuth(); // Initialize Firebase Auth
-  const [showSignInModal, setShowSignInModal] = useState(false);
+  const [cartItems, setCartItems] = useState([]) // Local state for cart items
+  const [products, setProducts] = useState({}) // Store product details including stock info
+  const [showSizeDropdown, setShowSizeDropdown] = useState(null) // Track which item has open dropdown
+  const [loading, setLoading] = useState(true) // Loading state
+  const [userUID, setUserUID] = useState(null)
+  const navigate = useNavigate()
+  const auth = getAuth() // Initialize Firebase Auth
+  const [showSignInModal, setShowSignInModal] = useState(false)
 
-// 🔹 Check authentication state before fetching cart
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    if (user) {
-      setUserUID(user.uid);
-      setShowSignInModal(false); // Make sure modal is hidden when user is signed in
-    } else {
-      setUserUID(null);
-      setShowSignInModal(true); // Show modal instead of redirecting
-    }
-  });
+  // 🔹 Check authentication state before fetching cart
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserUID(user.uid)
+        setShowSignInModal(false) // Make sure modal is hidden when user is signed in
+      } else {
+        setUserUID(null)
+        setShowSignInModal(true) // Show modal instead of redirecting
+      }
+    })
 
-  return () => unsubscribe(); // Cleanup on unmount
-}, []);
+    return () => unsubscribe() // Cleanup on unmount
+  }, [])
 
   // Fetch all products to get stock information
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const productsRef = collection(db, "shop"); // Assuming your shop collection name is "shop"
-        const querySnapshot = await getDocs(productsRef);
-        
-        const productsData = {};
-        querySnapshot.docs.forEach((doc) => {
-          productsData[doc.id] = doc.data();
-        });
-        
-        setProducts(productsData);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      }
-    };
+        const productsRef = collection(db, "shop") // Assuming your shop collection name is "shop"
+        const querySnapshot = await getDocs(productsRef)
 
-    fetchProducts();
-  }, []);
+        const productsData = {}
+        querySnapshot.docs.forEach((doc) => {
+          productsData[doc.id] = doc.data()
+        })
+
+        setProducts(productsData)
+      } catch (error) {
+        console.error("Error fetching products:", error)
+      }
+    }
+
+    fetchProducts()
+  }, [])
 
   // 🔹 Fetch cart items once the user is authenticated
   useEffect(() => {
-    if (!userUID) return;
+    if (!userUID) return
 
     const fetchCartItems = async () => {
-      setLoading(true);
+      setLoading(true)
 
-      const cartRef = doc(db, "carts", userUID);
-      const cartSnap = await getDoc(cartRef);
+      const cartRef = doc(db, "carts", userUID)
+      const cartSnap = await getDoc(cartRef)
 
       if (cartSnap.exists()) {
-        setCartItems(cartSnap.data().items || []);
+        setCartItems(cartSnap.data().items || [])
       } else {
-        setCartItems([]);
+        setCartItems([])
       }
 
-      setLoading(false);
-    };
+      setLoading(false)
+    }
 
-    fetchCartItems();
+    fetchCartItems()
 
     // Real-time listener for cart updates
-    const cartRef = doc(db, "carts", userUID);
+    const cartRef = doc(db, "carts", userUID)
     const unsubscribe = onSnapshot(cartRef, (doc) => {
       if (doc.exists()) {
-        setCartItems(doc.data().items || []);
+        setCartItems(doc.data().items || [])
       } else {
-        setCartItems([]);
+        setCartItems([])
       }
-    });
+    })
 
-    return () => unsubscribe();
-  }, [userUID]);
+    return () => unsubscribe()
+  }, [userUID])
 
   // Handle Remove Item
   const handleRemove = async (itemId) => {
-    if (!userUID) return;
+    if (!userUID) return
 
     try {
-      const cartRef = doc(db, "carts", userUID);
-      const cartSnap = await getDoc(cartRef);
+      const cartRef = doc(db, "carts", userUID)
+      const cartSnap = await getDoc(cartRef)
 
       if (cartSnap.exists()) {
-        const cartData = cartSnap.data();
-        const updatedItems = cartData.items.filter((item) => item.id !== itemId);
+        const cartData = cartSnap.data()
+        const updatedItems = cartData.items.filter((item) => item.id !== itemId)
 
-        await updateDoc(cartRef, { items: updatedItems }); // Update Firestore
-        setCartItems(updatedItems); // Update local state
+        await updateDoc(cartRef, { items: updatedItems }) // Update Firestore
+        setCartItems(updatedItems) // Update local state
       }
     } catch (error) {
-      console.error("Error removing item from cart:", error);
+      console.error("Error removing item from cart:", error)
     }
-  };
+  }
 
   // Handle Update Quantity
-  const handleUpdateQuantity = async (itemId, quantity) => {
-    if (!userUID) return;
+  const handleUpdateQuantity = async (itemId, newQuantity) => {
+    if (!userUID) return
 
     try {
-      const cartRef = doc(db, "carts", userUID);
-      const cartSnap = await getDoc(cartRef);
+      // Get the product to check stock limits
+      const product = products[itemId]
+      const item = cartItems.find((item) => item.id === itemId)
 
-      if (cartSnap.exists()) {
-        const cartData = cartSnap.data();
-        const updatedItems = cartData.items.map((item) =>
-          item.id === itemId ? { ...item, quantity } : item
-        );
+      if (product && item) {
+        // Get available stock for the selected size
+        const availableStock = product.stocks?.[item.size] || 0
 
-        await updateDoc(cartRef, { items: updatedItems }); // Update Firestore
-        setCartItems(updatedItems); // Update local state
+        // Ensure quantity doesn't exceed available stock
+        const quantity = Math.min(Math.max(1, newQuantity), availableStock)
+
+        const cartRef = doc(db, "carts", userUID)
+        const cartSnap = await getDoc(cartRef)
+
+        if (cartSnap.exists()) {
+          const cartData = cartSnap.data()
+          const updatedItems = cartData.items.map((item) => (item.id === itemId ? { ...item, quantity } : item))
+
+          await updateDoc(cartRef, { items: updatedItems }) // Update Firestore
+          setCartItems(updatedItems) // Update local state
+        }
       }
     } catch (error) {
-      console.error("Error updating item quantity:", error);
+      console.error("Error updating item quantity:", error)
     }
-  };
+  }
 
   // Handle Update Size
   const handleUpdateSize = async (itemId, newSize) => {
-    if (!userUID) return;
+    if (!userUID) return
 
     try {
-      const cartRef = doc(db, "carts", userUID);
-      const cartSnap = await getDoc(cartRef);
+      const cartRef = doc(db, "carts", userUID)
+      const cartSnap = await getDoc(cartRef)
 
       if (cartSnap.exists()) {
-        const cartData = cartSnap.data();
-        const updatedItems = cartData.items.map((item) =>
-          item.id === itemId ? { ...item, size: newSize } : item
-        );
+        const cartData = cartSnap.data()
+        const itemIndex = cartData.items.findIndex((item) => item.id === itemId)
 
-        await updateDoc(cartRef, { items: updatedItems }); // Update Firestore
-        setCartItems(updatedItems); // Update local state
+        if (itemIndex !== -1) {
+          const item = cartData.items[itemIndex]
+          const product = products[itemId]
+
+          // Get available stock for the new size
+          const availableStock = product?.stocks?.[newSize] || 0
+
+          // Adjust quantity if it exceeds available stock
+          const adjustedQuantity = Math.min(item.quantity, availableStock)
+
+          const updatedItems = [...cartData.items]
+          updatedItems[itemIndex] = {
+            ...item,
+            size: newSize,
+            quantity: adjustedQuantity,
+          }
+
+          await updateDoc(cartRef, { items: updatedItems }) // Update Firestore
+          setCartItems(updatedItems) // Update local state
+        }
       }
-      
+
       // Close the dropdown after selection
-      setShowSizeDropdown(null);
+      setShowSizeDropdown(null)
     } catch (error) {
-      console.error("Error updating item size:", error);
+      console.error("Error updating item size:", error)
     }
-  };
+  }
 
   // Toggle size dropdown
   const toggleSizeDropdown = (itemId) => {
     if (showSizeDropdown === itemId) {
-      setShowSizeDropdown(null);
+      setShowSizeDropdown(null)
     } else {
-      setShowSizeDropdown(itemId);
+      setShowSizeDropdown(itemId)
     }
-  };
+  }
 
   // Get available sizes for a product
   const getAvailableSizes = (productId) => {
-    const product = products[productId];
-    if (!product || !product.stocks) return [];
-    
+    const product = products[productId]
+    if (!product || !product.stocks) return []
+
     return Object.entries(product.stocks)
       .filter(([_, stock]) => stock > 0)
-      .map(([size]) => size);
-  };
+      .map(([size]) => size)
+  }
 
   // Handle Checkout
   const handleCheckout = () => {
     if (!userUID) {
-      alert('You must be logged in to proceed to checkout.');
-      navigate('/login'); // Redirect to login page if userUID is not available
-      return;
+      alert("You must be logged in to proceed to checkout.")
+      navigate("/login") // Redirect to login page if userUID is not available
+      return
     }
 
-    navigate('/checkout', {
+    navigate("/checkout", {
       state: {
         cartItems: cartItems,
         userUID: userUID, // Pass userUID to the Checkout component
       },
-    });
-  };
+    })
+  }
 
   // Handle Continue Shopping
   const handleContinueShopping = () => {
-    navigate('/shop');
-  };
+    navigate("/shop")
+  }
 
   // Calculate subtotal
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0)
+
+  // Check if any item exceeds available stock
+  const hasStockIssue = cartItems.some((item) => {
+    const product = products[item.id]
+    const availableStock = product?.stocks?.[item.size] || 0
+    return item.quantity > availableStock
+  })
 
   // Don't display the cart if loading is true or no cart items are available
   if (loading || cartItems.length === 0) {
@@ -208,18 +243,17 @@ useEffect(() => {
           Start Shopping
         </button>
       </div>
-    );
+    )
   }
-  
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* Header with back button */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mt-20 font-cousine">YOUR CART</h1> 
+        <h1 className="text-2xl font-bold mt-20 font-cousine">YOUR CART</h1>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
-        
         {/* Cart Items List */}
         <div className="lg:w-2/3">
           <div className="bg-white rounded-lg shadow-sm">
@@ -238,26 +272,30 @@ useEffect(() => {
                 >
                   {/* Product Info */}
                   <div className="col-span-6 flex items-center">
-                    <img src={item.image} alt={item.name} className="w-20 h-20 object-cover rounded-md" />
+                    <img
+                      src={item.image || "/placeholder.svg"}
+                      alt={item.name}
+                      className="w-20 h-20 object-cover rounded-md"
+                    />
                     <div className="ml-4">
                       <h3 className="font-medium">{item.name}</h3>
                       {/* Size Dropdown */}
                       <div className="relative mt-1">
-                        <button 
+                        <button
                           className="flex items-center text-sm text-gray-500 border px-2 py-1 rounded hover:bg-gray-50"
                           onClick={() => toggleSizeDropdown(item.id)}
                         >
-                          Size: {item.size ? item.size.toUpperCase() : 'Select Size'}
+                          Size: {item.size ? item.size.toUpperCase() : "Select Size"}
                           <ChevronDown size={14} className="ml-1" />
                         </button>
-                        
+
                         {showSizeDropdown === item.id && (
                           <div className="absolute z-10 mt-1 w-36 bg-white border rounded-md shadow-lg">
                             {getAvailableSizes(item.id).length > 0 ? (
                               getAvailableSizes(item.id).map((size) => (
-                                <button 
-                                  key={size} 
-                                  className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${item.size === size ? 'font-bold bg-gray-50' : ''}`}
+                                <button
+                                  key={size}
+                                  className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${item.size === size ? "font-bold bg-gray-50" : ""}`}
                                   onClick={() => handleUpdateSize(item.id, size)}
                                 >
                                   {size.toUpperCase()}
@@ -269,7 +307,7 @@ useEffect(() => {
                           </div>
                         )}
                       </div>
-                      
+
                       <button
                         onClick={() => handleRemove(item.id)}
                         className="flex items-center text-red-500 text-sm mt-2 hover:text-red-700"
@@ -281,12 +319,16 @@ useEffect(() => {
                   </div>
 
                   {/* Price */}
-                  <div className="hidden md:block col-span-2 text-center">
-                    ₱{item.price.toFixed(2)}
-                  </div>
+                  <div className="hidden md:block col-span-2 text-center">₱{item.price.toFixed(2)}</div>
+
+                  {products[item.id]?.stocks?.[item.size] < item.quantity && (
+                    <div className="col-span-12 md:col-start-7 md:col-span-6 bg-red-50 text-red-600 p-2 rounded text-sm mt-2">
+                      Only {products[item.id]?.stocks?.[item.size] || 0} items in stock. Quantity has been adjusted.
+                    </div>
+                  )}
 
                   {/* Quantity */}
-                  <div className="col-span-2 flex justify-center">
+                  <div className="col-span-2 flex flex-col items-center">
                     <div className="flex items-center border rounded-md">
                       <button
                         className="p-2 hover:bg-gray-100 text-gray-700 rounded-l-md"
@@ -299,16 +341,20 @@ useEffect(() => {
                       <button
                         className="p-2 hover:bg-gray-100 text-gray-700 rounded-r-md"
                         onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                        disabled={products[item.id]?.stocks?.[item.size] <= item.quantity}
                       >
                         <Plus size={16} />
                       </button>
                     </div>
+                    {products[item.id]?.stocks?.[item.size] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {item.quantity} of {products[item.id].stocks[item.size]} available
+                      </p>
+                    )}
                   </div>
 
                   {/* Total */}
-                  <div className="col-span-2 text-center font-medium">
-                    ₱{(item.price * item.quantity).toFixed(2)}
-                  </div>
+                  <div className="col-span-2 text-center font-medium">₱{(item.price * item.quantity).toFixed(2)}</div>
                 </div>
               ))}
             </div>
@@ -322,7 +368,9 @@ useEffect(() => {
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal ({cartItems.reduce((acc, item) => acc + item.quantity, 0)} items)</span>
+                <span className="text-gray-600">
+                  Subtotal ({cartItems.reduce((acc, item) => acc + item.quantity, 0)} items)
+                </span>
                 <span>₱{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
@@ -340,9 +388,12 @@ useEffect(() => {
 
             <button
               onClick={handleCheckout}
-              className="bg-black text-white text-center w-full py-4 rounded-md uppercase tracking-wide font-bold text-sm hover:bg-gray-800 transition-colors"
+              disabled={hasStockIssue}
+              className={`text-white text-center w-full py-4 rounded-md uppercase tracking-wide font-bold text-sm transition-colors ${
+                hasStockIssue ? "bg-gray-400 cursor-not-allowed" : "bg-black hover:bg-gray-800"
+              }`}
             >
-              Proceed to Checkout
+              {hasStockIssue ? "Some Items Exceed Available Stock" : "Proceed to Checkout"}
             </button>
 
             <button
@@ -360,7 +411,9 @@ useEffect(() => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-lg flex flex-col items-center animate-fadeIn w-96 max-w-lg">
             <div className="mb-4 text-center">
-              <h2 className="text-large font-semibold font-cousine">Sign in to add items to your cart and place an order</h2>
+              <h2 className="text-large font-semibold font-cousine">
+                Sign in to add items to your cart and place an order
+              </h2>
             </div>
             <div className="flex gap-3">
               <button
@@ -379,12 +432,9 @@ useEffect(() => {
           </div>
         </div>
       )}
-
-      
     </div>
-
-    
-  );
+  )
 }
 
-export default Cart;
+export default Cart
+

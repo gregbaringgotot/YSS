@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import {
   Search,
@@ -26,7 +24,7 @@ function AdminDeliver() {
   const [deliveredOrders, setDeliveredOrders] = useState([])
   const [receivedOrders, setReceivedOrders] = useState([])
   const [filteredOrders, setFilteredOrders] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -107,6 +105,14 @@ function AdminDeliver() {
     // Calculate average order value
     const avgOrderValue = orders.length > 0 ? totalIncome / orders.length : 0
 
+    // Calculate overall income from both delivered and received orders
+    const overallIncome =
+      activeTab === "delivered"
+        ? deliveredOrders.reduce((sum, order) => sum + (order.subtotal || 0), 0) +
+          receivedOrders.reduce((sum, order) => sum + (order.subtotal || 0), 0)
+        : receivedOrders.reduce((sum, order) => sum + (order.subtotal || 0), 0) +
+          deliveredOrders.reduce((sum, order) => sum + (order.subtotal || 0), 0)
+
     // Find best selling products
     const productCounts = {}
     orders.forEach((order) => {
@@ -134,6 +140,7 @@ function AdminDeliver() {
       totalIncome,
       totalOrders: orders.length,
       avgOrderValue,
+      overallIncome,
       bestSellingProducts,
     })
   }
@@ -428,10 +435,11 @@ function AdminDeliver() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="w-16 h-16 border-4 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-bold text-gray-700">Loading Deliveries...</h2>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -442,7 +450,7 @@ function AdminDeliver() {
     <div className="bg-gray-50 min-h-screen">
       <div className="container mx-auto ">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold font-cousine text-gray-800">ORDER MANAGEMENT</h1>
+          <h1 className="text-3xl font-bold font-cousine text-gray-800"> DILIVERED PRODUCTS </h1>
 
           <div className="flex flex-wrap gap-2">
             {/* Refresh Button */}
@@ -565,14 +573,14 @@ function AdminDeliver() {
             </div>
           </div>
 
-          {/* Average Order Value Card */}
+          {/* Overall Income Card */}
           <div className="bg-white rounded-lg shadow-md p-6 flex items-center border-l-4 border-black">
             <div className="bg-gray-100 p-3 rounded-full mr-4">
               <TrendingUp size={24} className="text-black" />
             </div>
             <div>
-              <p className="text-sm text-gray-500 font-medium">Average Order Value</p>
-              <h3 className="text-2xl font-bold">₱{stats.avgOrderValue.toFixed(2)}</h3>
+              <p className="text-sm text-gray-500 font-medium">Overall Income (Delivered & Received)</p>
+              <h3 className="text-2xl font-bold">₱{stats.overallIncome?.toFixed(2) || "0.00"}</h3>
             </div>
           </div>
         </div>
