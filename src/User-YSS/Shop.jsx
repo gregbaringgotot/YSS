@@ -674,7 +674,7 @@ function Shop() {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-8 rounded-lg shadow-lg flex flex-col items-center animate-fadeIn w-96 max-w-lg">
             <div className="flex flex-col items-center justify-center mb-4">
-              <CheckCircle size={40} className="text-green-500 mb-2" />
+              <CheckCircle size={40} className="text-black mb-2" />
               <ShoppingCart size={64} className="text-black" />
             </div>
             <p className="text-xl font-semibold">{confirmationMessage}</p>
