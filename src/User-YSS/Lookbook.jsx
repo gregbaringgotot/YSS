@@ -23,7 +23,25 @@ function Lookbook() {
         querySnapshot.forEach((doc) => {
           lookbooksArray.push({ id: doc.id, ...doc.data() })
         })
-        setLookbooks(lookbooksArray)
+
+        // Sort lookbooks by timestamp (if available) or createdAt field
+        // This ensures newest items appear first
+        const sortedLookbooks = lookbooksArray.sort((a, b) => {
+          // First try to use timestamp field
+          const aTime = a.timestamp || a.createdAt || 0
+          const bTime = b.timestamp || b.createdAt || 0
+
+          // Sort in descending order (newest first)
+          if (typeof aTime === "object" && aTime?.toDate) {
+            // Handle Firestore Timestamp objects
+            return bTime.toDate() - aTime.toDate()
+          }
+
+          // Handle string dates or numbers
+          return new Date(bTime) - new Date(aTime)
+        })
+
+        setLookbooks(sortedLookbooks)
       } catch (error) {
         console.error("Error fetching lookbooks: ", error)
       } finally {
@@ -114,7 +132,7 @@ function Lookbook() {
             <div className="absolute inset-0 flex flex-col justify-center items-center text-white p-8 text-center">
               <h1 className="text-5xl font-bold mb-4 tracking-wider font-cousine ">LOOKBOOK</h1>
               <p className="text-xl max-w-2xl  ">
-                "Sharing God's message through inspiring and uplifting designs that speak to the heart and soul.
+                "Sharing God's message through inspiring and uplifting designs that speak to the heart and soul."
               </p>
               <button
                 className="mt-10 px-6 py-3 bg-white text-black font-semibold rounded-md hover:bg-gray-200 transition duration-300 font-cousine"
@@ -158,7 +176,18 @@ function Lookbook() {
                 />
               </div>
               <div className="md:w-1/2 p-8 flex flex-col justify-center ml-10">
-                <h2 className="text-3xl font-bold font-cousine">{filteredLookbooks[0]?.name}</h2>
+                <h2 className="text-3xl font-bold font-cousine">
+                  {filteredLookbooks[0]?.name?.split(" ").map((word, index) =>
+                    index === 1 ? (
+                      <span key={index}> "{word}" </span>
+                    ) : (
+                      <span key={index}>
+                        {index > 0 ? " " : ""}
+                        {word}
+                      </span>
+                    ),
+                  )}
+                </h2>
                 <div className="border-b-2 border-gray-900 my-6 w-20"></div>
                 <div className="flex space-x-4">
                   <button

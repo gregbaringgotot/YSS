@@ -298,7 +298,7 @@ function AdminDeliver() {
           order.id,
           order.address?.name || "N/A",
           order.date,
-          order.subtotal?.toFixed(2) || "0.00",
+          order.subtotal ? formatPrice(order.subtotal) : "0.00",
           order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "N/A",
         ]
       } else {
@@ -307,7 +307,7 @@ function AdminDeliver() {
           order.address?.name || "N/A",
           order.date,
           order.receivedAt ? new Date(order.receivedAt).toLocaleDateString() : "N/A",
-          order.subtotal?.toFixed(2) || "0.00",
+          order.subtotal ? formatPrice(order.subtotal) : "0.00",
         ]
       }
     })
@@ -326,6 +326,15 @@ function AdminDeliver() {
     link.click()
     document.body.removeChild(link)
   }
+
+  // Add this function near the top of your component
+const formatPrice = (price) => {
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+
 
   // Order Details Modal
   const OrderDetailsModal = ({ order, onClose }) => {
@@ -356,7 +365,7 @@ function AdminDeliver() {
                 <strong>Order Date:</strong> {order.date}
               </p>
               <p>
-                <strong>Total Amount:</strong> ₱{order.subtotal?.toFixed(2) || 0}
+                <strong>Total Amount:</strong> ₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}
               </p>
               <p>
                 <strong>Delivery Date:</strong>{" "}
@@ -415,15 +424,15 @@ function AdminDeliver() {
                     </td>
                     <td className="border p-2 text-center">{item.size || "N/A"}</td>
                     <td className="border p-2 text-center">{item.quantity}</td>
-                    <td className="border p-2 text-right">₱{item.price.toFixed(2)}</td>
-                    <td className="border p-2 text-right">₱{(item.price * item.quantity).toFixed(2)}</td>
+                    <td className="border p-2 text-right">₱{formatPrice(item.price)}</td>
+                    <td className="border p-2 text-right">₱{formatPrice(item.price * item.quantity)}</td>
                   </tr>
                 ))}
                 <tr className="bg-gray-50 font-semibold">
                   <td colSpan="4" className="border p-2 text-right">
                     Total:
                   </td>
-                  <td className="border p-2 text-right">₱{order.subtotal?.toFixed(2) || "0.00"}</td>
+                  <td className="border p-2 text-right">₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}</td>
                 </tr>
               </tbody>
             </table>
@@ -556,7 +565,7 @@ function AdminDeliver() {
               <p className="text-sm text-gray-500 font-medium">
                 Total Income {activeTab === "delivered" ? "Delivered" : "Received"}
               </p>
-              <h3 className="text-2xl font-bold">₱{stats.totalIncome.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold">₱{formatPrice(stats.totalIncome)}</h3>
             </div>
           </div>
 
@@ -580,7 +589,7 @@ function AdminDeliver() {
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Overall Income (Delivered & Received)</p>
-              <h3 className="text-2xl font-bold">₱{stats.overallIncome?.toFixed(2) || "0.00"}</h3>
+              <h3 className="text-2xl font-bold">₱{stats.overallIncome ? formatPrice(stats.overallIncome) : "0.00"}</h3>
             </div>
           </div>
         </div>
@@ -708,7 +717,7 @@ function AdminDeliver() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">₱{order.subtotal?.toFixed(2) || "0.00"}</div>
+                      <div className="text-sm font-medium text-gray-900">₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button onClick={() => setSelectedOrder(order)} className="text-black hover:text-gray-700 mr-3">

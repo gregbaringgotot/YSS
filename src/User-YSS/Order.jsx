@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { getAuth } from "firebase/auth"
-import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore"
-import { db } from "../Database/Firebase"
+import { collection, query, where, getDocs, doc, updateDoc, addDoc } from "firebase/firestore"
+import { db, uploadQuoteImageToCloudinary } from "../Database/Firebase"
 import {
   Truck,
   Package,
@@ -19,6 +19,8 @@ import {
   Clock,
   XCircle,
   CheckSquare,
+  Star,
+  ImageIcon,
 } from "lucide-react"
 
 const Order = () => {
@@ -32,6 +34,18 @@ const Order = () => {
   const [activeTab, setActiveTab] = useState("orders") // "orders" or "history"
   const navigate = useNavigate()
   const auth = getAuth()
+
+  // Rating modal state
+  const [showRatingModal, setShowRatingModal] = useState(false)
+  const [ratingOrderId, setRatingOrderId] = useState(null)
+  const [ratingOrderDetails, setRatingOrderDetails] = useState(null)
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [reviewText, setReviewText] = useState("")
+  const [reviewImages, setReviewImages] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [ratingSuccess, setRatingSuccess] = useState("")
+  const [imageUploading, setImageUploading] = useState(false)
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -158,11 +172,124 @@ const Order = () => {
 
       setOrders(updatedOrders)
 
-      // Switch to history tab
-      setActiveTab("history")
+      // Open rating modal
+      openRatingModal(orderId)
     } catch (err) {
       console.error("Error marking order as received:", err)
       setError("Failed to update order. Please try again.")
+    }
+  }
+
+  // Open rating modal
+  const openRatingModal = (orderId) => {
+    const orderToRate = orders.find((order) => order.id === orderId)
+    setRatingOrderId(orderId)
+    setRatingOrderDetails(orderToRate)
+    setShowRatingModal(true)
+    setRating(0)
+    setReviewText("")
+    setReviewImages([])
+    setRatingSuccess("")
+  }
+
+  // Close rating modal
+  const closeRatingModal = () => {
+    setShowRatingModal(false)
+    setRatingOrderId(null)
+    setRatingOrderDetails(null)
+
+    // Switch to history tab
+    setActiveTab("history")
+  }
+
+  // Handle image upload
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+
+    setImageUploading(true)
+
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const imageUrl = await uploadQuoteImageToCloudinary(file)
+        return imageUrl
+      })
+
+      const uploadedUrls = await Promise.all(uploadPromises)
+      const validUrls = uploadedUrls.filter((url) => url !== null)
+
+      setReviewImages((prev) => [...prev, ...validUrls])
+    } catch (error) {
+      console.error("Error uploading images:", error)
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  // Remove uploaded image
+  const removeImage = (index) => {
+    setReviewImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // Submit review
+  const submitReview = async () => {
+    if (rating === 0) return
+
+    setIsSubmitting(true)
+
+    try {
+      const user = auth.currentUser
+      if (!user) {
+        console.error("No authenticated user found.")
+        return
+      }
+
+      // Create review object
+      const reviewData = {
+        orderId: ratingOrderId,
+        userUID: user.uid,
+        userName: ratingOrderDetails?.address?.name || user.displayName || "Anonymous",
+        rating,
+        reviewText,
+        images: reviewImages,
+        items: ratingOrderDetails?.items || [],
+        timestamp: new Date().toISOString(),
+      }
+
+      // Add to reviews collection
+      const reviewsCollection = collection(db, "reviews")
+      await addDoc(reviewsCollection, reviewData)
+
+      // Update order to mark as reviewed
+      const orderRef = doc(db, "orders", ratingOrderId)
+      await updateDoc(orderRef, {
+        isReviewed: true,
+        reviewTimestamp: new Date().toISOString(),
+      })
+
+      // Update local state
+      const updatedOrders = orders.map((order) =>
+        order.id === ratingOrderId
+          ? {
+              ...order,
+              isReviewed: true,
+              reviewTimestamp: new Date().toISOString(),
+            }
+          : order,
+      )
+      setOrders(updatedOrders)
+
+      setRatingSuccess("Thank you for your review!")
+
+      // Close the modal after 2 seconds
+      setTimeout(() => {
+        closeRatingModal()
+      }, 2000)
+    } catch (err) {
+      console.error("Error submitting review:", err)
+      setError("Failed to submit review. Please try again.")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -216,6 +343,11 @@ const Order = () => {
     return status === "Delivered"
   }
 
+  // Check if order can be rated
+  const canRateOrder = (order) => {
+    return order.status === "Received" && !order.isReviewed
+  }
+
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "Not specified"
@@ -225,6 +357,13 @@ const Order = () => {
       year: "numeric",
       month: "long",
       day: "numeric",
+    })
+  }
+
+  const formatPrice = (price) => {
+    return price.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     })
   }
 
@@ -399,11 +538,14 @@ const Order = () => {
                       </p>
                     )}
                     {order.receivedAt && (
-                      <p className="text-sm text-green-600 mt-1">Received on {formatDate(order.receivedAt)}</p>
+                      <p className="text-sm text-black font-bold mt-1">Received on {formatDate(order.receivedAt)}</p>
+                    )}
+                    {order.isReviewed && (
+                      <p className="text-sm text-black font-bold mt-1">Reviewed on {formatDate(order.reviewTimestamp)}</p>
                     )}
                   </div>
                   <div className="mt-2 sm:mt-0 flex flex-col items-end">
-                    <span className="font-bold text-lg">₱{order.subtotal.toFixed(2)}</span>
+                    <span className="font-bold text-lg">₱{formatPrice(order.subtotal)}</span>
                     {canCancelOrder(order.status) && (
                       <button
                         onClick={() => openCancelModal(order.id)}
@@ -505,7 +647,7 @@ const Order = () => {
                         </div>
                       </div>
                       <div className="text-sm font-medium text-gray-900">
-                        ₱{(item.price * item.quantity).toFixed(2)}
+                        ₱{formatPrice(item.price * item.quantity)}
                       </div>
                     </div>
                   ))}
@@ -558,7 +700,7 @@ const Order = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Subtotal:</span>
-                      <span>₱{order.subtotal.toFixed(2)}</span>
+                      <span>₱{formatPrice(order.subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Shipping:</span>
@@ -571,7 +713,7 @@ const Order = () => {
                     <div className="border-t pt-2 mt-2">
                       <div className="flex justify-between font-bold">
                         <span>Total:</span>
-                        <span>₱{order.subtotal.toFixed(2)}</span>
+                        <span>₱{formatPrice(order.subtotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -594,6 +736,15 @@ const Order = () => {
                     >
                       <CheckSquare className="w-4 h-4 mr-2" />
                       Mark as Received
+                    </button>
+                  )}
+                  {canRateOrder(order) && (
+                    <button
+                      onClick={() => openRatingModal(order.id)}
+                      className="bg-black hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors flex items-center"
+                    >
+                      <Star className="w-4 h-4 mr-2" />
+                      Rate Order
                     </button>
                   )}
                 </div>
@@ -673,6 +824,146 @@ const Order = () => {
         </div>
       )}
 
+      {/* Rating Modal */}
+      {showRatingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Rate Your Order</h3>
+              <button onClick={closeRatingModal} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+
+            {ratingSuccess ? (
+              <div className="text-center py-6">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <p className="text-lg font-medium text-green-600">{ratingSuccess}</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-6">
+                  <p className="text-gray-600 mb-4">
+                    How would you rate your experience with this order? Your feedback helps us improve our service.
+                  </p>
+
+                  {/* Star Rating */}
+                  <div className="flex justify-center mb-4">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRating(star)}
+                        onMouseEnter={() => setHoverRating(star)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        className="p-1"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${
+                            (hoverRating || rating) >= star ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-center text-sm text-gray-500 mb-4">
+                    {rating === 1
+                      ? "Poor"
+                      : rating === 2
+                        ? "Fair"
+                        : rating === 3
+                          ? "Good"
+                          : rating === 4
+                            ? "Very Good"
+                            : rating === 5
+                              ? "Excellent"
+                              : "Select a rating"}
+                  </p>
+
+                  {/* Review Text */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your Review (Optional)</label>
+                    <textarea
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
+                      placeholder="Share your experience with this product..."
+                      className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent"
+                      rows={4}
+                    ></textarea>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Add Photos (Optional)</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {reviewImages.map((img, index) => (
+                        <div key={index} className="relative w-20 h-20">
+                          <img
+                            src={img || "/placeholder.svg"}
+                            alt={`Review ${index + 1}`}
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                          <button
+                            onClick={() => removeImage(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      {reviewImages.length < 5 && !imageUploading && (
+                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50">
+                          <ImageIcon className="w-6 h-6 text-gray-400" />
+                          <span className="text-xs text-gray-500 mt-1">Add</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            disabled={reviewImages.length >= 5}
+                          />
+                        </label>
+                      )}
+                      {imageUploading && (
+                        <div className="w-20 h-20 border-2 border-gray-300 rounded-md flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">You can upload up to 5 images</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={closeRatingModal}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitReview}
+                    disabled={rating === 0 || isSubmitting}
+                    className={`px-4 py-2 rounded-md text-white ${
+                      rating > 0 && !isSubmitting ? "bg-black hover:bg-gray-800" : "bg-gray-300 cursor-not-allowed"
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Submitting...
+                      </span>
+                    ) : (
+                      "Submit Review"
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

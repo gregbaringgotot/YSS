@@ -23,11 +23,12 @@ import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firesto
 import { db } from "../Database/Firebase" // Adjust the import path as needed
 
 function AdminOrderManagement() {
+  // 1. Change the initial state for selectedStatus to "Placed" instead of "All"
+  const [selectedStatus, setSelectedStatus] = useState("Placed")
   const [orders, setOrders] = useState([])
   const [filteredOrders, setFilteredOrders] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("All")
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -40,6 +41,8 @@ function AdminOrderManagement() {
   const [showSortDropdown, setShowSortDropdown] = useState(false)
   const sortDropdownRef = useRef(null)
   const ordersPerPage = 5
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -54,7 +57,7 @@ function AdminOrderManagement() {
     }
   }, [])
 
-  // Fetch all orders from Firestore
+  // 2. Modify the fetchOrders function to set selectedStatus to "Placed" after refresh
   const fetchOrders = async () => {
     try {
       setIsLoading(true)
@@ -69,6 +72,7 @@ function AdminOrderManagement() {
 
       setOrders(ordersData)
       setFilteredOrders(ordersData)
+      setSelectedStatus("Placed") // Reset to "Placed" after refresh
     } catch (error) {
       console.error("Error fetching orders:", error)
       setError("Failed to fetch orders. Please try again.")
@@ -109,6 +113,18 @@ function AdminOrderManagement() {
     // Filter by status
     if (selectedStatus !== "All") {
       result = result.filter((order) => order.status === selectedStatus)
+    }
+
+    // Filter by date range
+    if (startDate) {
+      const startDateObj = new Date(startDate)
+      result = result.filter((order) => new Date(order.timestamp) >= startDateObj)
+    }
+
+    if (endDate) {
+      const endDateObj = new Date(endDate)
+      endDateObj.setHours(23, 59, 59, 999)
+      result = result.filter((order) => new Date(order.timestamp) <= endDateObj)
     }
 
     // Search by ID or customer name
@@ -157,7 +173,7 @@ function AdminOrderManagement() {
 
     setFilteredOrders(result)
     setCurrentPage(1)
-  }, [selectedStatus, searchTerm, orders, sortBy, sortDirection])
+  }, [selectedStatus, searchTerm, orders, sortBy, sortDirection, startDate, endDate])
 
   // Pagination
   const indexOfLastOrder = currentPage * ordersPerPage
@@ -228,6 +244,8 @@ function AdminOrderManagement() {
         return "bg-gray-100 text-black-800"
       case "Delivered":
         return "bg-gray-100 text-black-800"
+      case "Placed":
+        return "bg-gray-100 text-black-800"
       default:
         return "bg-gray-200 text-black-800"
     }
@@ -245,6 +263,8 @@ function AdminOrderManagement() {
       case "Delivered":
         return "bg-black hover:bg-gray-600 text-white"
       case "Cancelled":
+        return "bg-black hover:bg-gray-600 text-white"
+      case "Placed":
         return "bg-black hover:bg-gray-600 text-white"
       default:
         return "bg-black hover:bg-gray-600 text-white"
@@ -264,6 +284,8 @@ function AdminOrderManagement() {
         return <Check size={16} className="inline" />
       case "Cancelled":
         return <X size={16} className="inline" />
+      case "Placed":
+        return <Clock size={16} className="inline" />
       default:
         return null
     }
@@ -277,6 +299,13 @@ function AdminOrderManagement() {
     ) : (
       <ArrowDown size={14} className="inline ml-1" />
     )
+  }
+
+  const formatPrice = (price) => {
+    return price.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
   }
 
   // Delete Confirmation Modal
@@ -331,7 +360,7 @@ function AdminOrderManagement() {
 
   // View Order Details Modal with status update buttons
   const OrderDetailsModal = ({ order, onClose }) => {
-    const statusOptions = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]
+    const statusOptions = ["Placed", "Pending", "Processing", "Shipped", "Delivered", "Cancelled"]
     const [showDatePicker, setShowDatePicker] = useState(false)
     const [selectedDate, setSelectedDate] = useState("")
     const [currentOrder, setCurrentOrder] = useState(order)
@@ -467,7 +496,7 @@ function AdminOrderManagement() {
                 </p>
                 <p className="flex justify-between">
                   <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-medium">₱{order.subtotal?.toFixed(2) || 0}</span>
+                  <span className="font-medium">₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}</span>
                 </p>
               </div>
             </div>
@@ -545,26 +574,30 @@ function AdminOrderManagement() {
                 </h3>
               </div>
               <div className="p-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <p className="text-gray-600 mb-1">Current Delivery Date:</p>
-                    <p className="font-medium">
-                      {currentOrder.deliveryDate
-                        ? new Date(currentOrder.deliveryDate).toLocaleDateString()
-                        : "To be scheduled"}
-                    </p>
+                {currentOrder.status === "Shipped" || currentOrder.status === "Delivered" ? (
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-gray-600 mb-1">Current Delivery Date:</p>
+                      <p className="font-medium">
+                        {currentOrder.deliveryDate
+                          ? new Date(currentOrder.deliveryDate).toLocaleDateString()
+                          : "To be scheduled"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowDatePicker(!showDatePicker)}
+                      disabled={isUpdatingDate}
+                      className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center"
+                    >
+                      {showDatePicker ? <X className="mr-2 h-4 w-4" /> : <Clock className="mr-2 h-4 w-4" />}
+                      {showDatePicker ? "Cancel" : "Set Delivery Date"}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setShowDatePicker(!showDatePicker)}
-                    disabled={isUpdatingDate}
-                    className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center"
-                  >
-                    {showDatePicker ? <X className="mr-2 h-4 w-4" /> : <Clock className="mr-2 h-4 w-4" />}
-                    {showDatePicker ? "Cancel" : "Set Delivery Date"}
-                  </button>
-                </div>
+                ) : (
+                  <p className="text-gray-600 italic">Delivery date can be set after order is shipped</p>
+                )}
 
-                {showDatePicker && (
+                {showDatePicker && currentOrder.status === "Shipped" && (
                   <div className="mt-4 border rounded-md p-4 bg-gray-50">
                     <p className="text-sm text-gray-600 mb-2">Select a new delivery date:</p>
                     <input
@@ -658,14 +691,16 @@ function AdminOrderManagement() {
                       </td>
                       <td className="p-3 text-center">{item.size || "N/A"}</td>
                       <td className="p-3 text-center">{item.quantity}</td>
-                      <td className="p-3 text-right">₱{item.price.toFixed(2)}</td>
+                      <td className="p-3 text-right">₱{formatPrice(item.price)}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 border-t">
                     <td colSpan="3" className="p-3 text-right font-semibold">
                       Total:
                     </td>
-                    <td className="p-3 text-right font-semibold">₱{order.subtotal?.toFixed(2) || 0}</td>
+                    <td className="p-3 text-right font-semibold">
+                      ₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -692,24 +727,53 @@ function AdminOrderManagement() {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="container mx-auto">
+        {/* 3. Replace the header section with date filter beside refresh button */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-3xl font-bold font-cousine text-gray-800">ORDER MANAGEMENT</h1>
 
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={`${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Refreshing..." : "Refresh Orders"}
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Date Filter */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  id="start-date"
+                  className="border rounded-md p-1.5"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="From"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  id="end-date"
+                  className="border rounded-md p-1.5"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  placeholder="To"
+                />
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={18} className={`${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Refreshing..." : "Refresh Orders"}
+            </button>
+          </div>
         </div>
+
+        {/* 4. Remove the standalone date filter section */}
 
         {/* Filters and Search */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-wrap gap-2">
-            {["All", "Pending", "Processing", "Shipped", "Delivered", "Cancelled"].map((status) => (
+            {["Placed", "Pending", "Processing", "Shipped", "Delivered", "Cancelled", "All"].map((status) => (
               <button
                 key={status}
                 onClick={() => setSelectedStatus(status)}
@@ -782,6 +846,28 @@ function AdminOrderManagement() {
           </div>
         </div>
 
+        {/* 5. Replace the Sales Analytics section with just Revenue by Status */}
+        {/* Revenue by Status */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Revenue by Status</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {["Placed", "Pending", "Processing", "Shipped", "Delivered", "Cancelled"].map((status) => {
+              const total = orders
+                .filter((order) => order.status === status)
+                .reduce((sum, order) => sum + (order.subtotal || 0), 0)
+              return (
+                <div key={status} className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium mb-2 text-gray-600">{status}</h3>
+                  <p className="text-xl font-bold">₱{formatPrice(total)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {orders.filter((order) => order.status === status).length} orders
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Order List */}
         <div className="bg-white rounded-lg shadow-md overflow-x-auto">
           {filteredOrders.length === 0 ? (
@@ -814,7 +900,7 @@ function AdminOrderManagement() {
                     <td className="p-4">{order.id}</td>
                     <td className="p-4">{order.address?.name || "N/A"}</td>
                     <td className="p-4">{order.date}</td>
-                    <td className="p-4">₱{order.subtotal?.toFixed(2) || "0.00"}</td>
+                    <td className="p-4">₱{order.subtotal ? formatPrice(order.subtotal) : "0.00"}</td>
                     <td className="p-4">
                       <span className={`px-3 py-1 rounded-full text-xs ${getStatusColor(order.status)}`}>
                         {order.status || "Pending"}

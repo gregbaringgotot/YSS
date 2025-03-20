@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon, AlertCircle } from "lucide-react"
+import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon, AlertCircle, CheckCircle2 } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
 import {
   updateUserAddress,
@@ -18,7 +18,6 @@ function Checkout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { cartItems, userUID } = location.state || { cartItems: [], userUID: "" }
-  console.log(cartItems, userUID)
 
   // Get today's date in the correct format (yyyy-mm-dd)
   const getTodayDate = () => {
@@ -28,11 +27,6 @@ function Checkout() {
     const yyyy = today.getFullYear()
     return `${yyyy}-${mm}-${dd}`
   }
-
-  useEffect(() => {
-    fetchUserAddress()
-    fetchProductsStock()
-  }, [userUID]) // Runs whenever userUID changes
 
   const [address, setAddress] = useState({
     name: "",
@@ -49,11 +43,28 @@ function Checkout() {
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [products, setProducts] = useState({}) // Store product details including stock info
+  const [addressSaved, setAddressSaved] = useState(false)
+  const [isAddressLoading, setIsAddressLoading] = useState(true)
+  // Terms and conditions state
+  const [showTermsModal, setShowTermsModal] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+
+  // Fetch user address when the component mounts or when location changes
+  useEffect(() => {
+    if (userUID) {
+      fetchUserAddress()
+    }
+  }, [userUID, location.key]) // Add location.key to re-fetch when navigating back
+
+  // Fetch products stock information
+  useEffect(() => {
+    fetchProductsStock()
+  }, [])
 
   // Fetch all products to get stock information
   const fetchProductsStock = async () => {
     try {
-      const productsRef = collection(db, "shop") // Assuming your shop collection name is "shop"
+      const productsRef = collection(db, "shop")
       const querySnapshot = await getDocs(productsRef)
 
       const productsData = {}
@@ -98,7 +109,7 @@ function Checkout() {
     }
   }
 
-  // Fetch user address when the component mounts
+  // Fetch user address from Firestore
   const fetchUserAddress = async () => {
     if (!userUID) {
       setError("You must be logged in to place an order.")
@@ -106,31 +117,49 @@ function Checkout() {
       return
     }
 
+    setIsAddressLoading(true)
+
     try {
       const userProfile = await getUserAddress(userUID)
-      console.log("Fetched user profile:", userProfile) // Debugging
+      console.log("Fetched user profile:", userProfile)
 
       if (!userProfile) {
         setError("No user data found. Please enter your details.")
+        setIsAddressLoading(false)
         return
       }
 
+      // Check if the address is stored directly in the user document or in an address field
+      const userAddress = userProfile.address || userProfile
+
       const populatedAddress = {
-        name: userProfile.name || "",
-        phone: userProfile.phone || "",
-        email: userProfile.email || "",
-        street: userProfile.street || "",
-        city: userProfile.city || "",
-        deliveryDate: getTodayDate(),
+        name: userAddress.name || "",
+        phone: userAddress.phone || "",
+        email: userAddress.email || "",
+        street: userAddress.street || "",
+        city: userAddress.city || "",
+        deliveryDate: userAddress.deliveryDate || getTodayDate(),
       }
 
-      console.log("Populated Address:", populatedAddress) // Debugging
+      console.log("Populated Address:", populatedAddress)
 
       setAddress(populatedAddress)
       setNewAddress(populatedAddress)
+
+      // Check if we have a complete address
+      const hasCompleteAddress =
+        populatedAddress.name &&
+        populatedAddress.phone &&
+        populatedAddress.email &&
+        populatedAddress.street &&
+        populatedAddress.city
+
+      setAddressSaved(hasCompleteAddress)
     } catch (error) {
       console.error("Error fetching user address:", error)
       setError("Failed to fetch address. Please try again.")
+    } finally {
+      setIsAddressLoading(false)
     }
   }
 
@@ -146,14 +175,27 @@ function Checkout() {
     }
 
     try {
-      const updatedAddress = {
-        ...newAddress,
+      // Save the address directly to the user document
+      await updateUserAddress(userUID, {
+        name: newAddress.name,
+        phone: newAddress.phone,
+        email: newAddress.email,
+        street: newAddress.street,
+        city: newAddress.city,
         deliveryDate: newAddress.deliveryDate || getTodayDate(),
-      }
-      await updateUserAddress(userUID, updatedAddress)
-      setAddress(updatedAddress)
+      })
+
+      // Update local state with the new address
+      setAddress({ ...newAddress })
       setIsEditing(false)
       setError("")
+      setAddressSaved(true)
+      setSuccessMessage("Address saved successfully!")
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("")
+      }, 3000)
     } catch (error) {
       console.error("Error updating user address:", error)
       setError("Failed to update address. Please try again.")
@@ -208,7 +250,7 @@ function Checkout() {
       return
     }
 
-    console.log("Checking address before checkout:", address) // Debugging
+    console.log("Checking address before checkout:", address)
 
     if (!address.name || !address.phone || !address.email || !address.street || !address.city) {
       setError("Please fill out your shipping details before placing an order.")
@@ -223,6 +265,12 @@ function Checkout() {
     // Check stock availability one more time before proceeding
     if (hasStockIssue) {
       setError("Some items exceed available stock. Please adjust quantities before proceeding.")
+      return
+    }
+
+    // Check if terms have been accepted
+    if (!termsAccepted) {
+      setShowTermsModal(true)
       return
     }
 
@@ -250,16 +298,17 @@ function Checkout() {
         subtotal,
         status: "Placed",
         timestamp: new Date().toISOString(),
+        termsAccepted: true,
       }
 
-      console.log("Final order data:", orderData) // Debugging
+      console.log("Final order data:", orderData)
 
       await saveOrder(orderData)
       await clearCart(userUID)
 
       setSuccessMessage("Order placed successfully!")
       setTimeout(() => {
-        navigate("/order-confirmation", { state: { cartItems: cartItemsState, address } })
+        navigate("/orders", { state: { cartItems: cartItemsState, address } })
       }, 2000)
     } catch (error) {
       console.error("Error during checkout:", error)
@@ -285,6 +334,19 @@ function Checkout() {
   const getAvailableStock = (item) => {
     const product = products[item.id]
     return product?.stocks?.[item.size] || 0
+  }
+
+  const formatPrice = (price) => {
+    return price.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  }
+
+  // Handle terms acceptance
+  const handleAcceptTerms = () => {
+    setTermsAccepted(true)
+    setShowTermsModal(false)
   }
 
   return (
@@ -319,12 +381,22 @@ function Checkout() {
                 </button>
               </div>
               <div className="border-t pt-4">
-                <p className="font-semibold text-lg">{address.name}</p>
-                <p className="text-gray-700">{address.phone}</p>
-                <p className="text-gray-700">{address.email}</p>
-                <p className="text-gray-700">{address.street}</p>
-                <p className="text-gray-700">{address.city}</p>
-                <p className="text-gray-700">Date: {formatDeliveryDate(address.deliveryDate)}</p>
+                {isAddressLoading ? (
+                  <p className="text-gray-500">Loading address information...</p>
+                ) : addressSaved ? (
+                  <>
+                    <p className="font-semibold text-lg">{address.name}</p>
+                    <p className="text-gray-700">{address.phone}</p>
+                    <p className="text-gray-700">{address.email}</p>
+                    <p className="text-gray-700">{address.street}</p>
+                    <p className="text-gray-700">{address.city}</p>
+                    <p className="text-gray-700">Date: {formatDeliveryDate(address.deliveryDate)}</p>
+                  </>
+                ) : (
+                  <p className="text-gray-500 italic">
+                    No address saved. Please click Edit to add your shipping details.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -348,7 +420,7 @@ function Checkout() {
                         <div>
                           <p className="font-medium">{item.name}</p>
                           <p className="text-sm text-gray-600">Size: {item.size?.toUpperCase() || "Default"}</p>
-                          <p className="text-lg font-semibold">₱{item.price}</p>
+                          <p className="text-lg font-semibold">₱{formatPrice(item.price)}</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
@@ -404,6 +476,38 @@ function Checkout() {
                 </div>
               </div>
             </div>
+
+            {/* Terms and Conditions Section */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="font-bold text-lg mb-4 flex items-center">
+                <AlertCircle className="mr-2 text-gray-600" size={20} /> TERMS & CONDITIONS
+              </h2>
+              <div className="border-t pt-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div
+                      onClick={() => setTermsAccepted(!termsAccepted)}
+                      className={`w-5 h-5 border rounded cursor-pointer flex items-center justify-center ${termsAccepted ? "bg-black border-black" : "border-gray-400"}`}
+                    >
+                      {termsAccepted && <CheckCircle2 className="w-4 h-4 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      I agree to the{" "}
+                      <button
+                        type="button"
+                        onClick={() => setShowTermsModal(true)}
+                        className="text-black underline font-medium"
+                      >
+                        Terms and Conditions
+                      </button>{" "}
+                      of this purchase, including the no-refund policy.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right Section */}
@@ -414,13 +518,13 @@ function Checkout() {
               <div className="border-t pt-4 space-y-3">
                 <div className="flex justify-between">
                   <p className="text-gray-600">RETAIL PRICE:</p>
-                  <p>₱{cartItemsState.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
+                  <p>₱{formatPrice(cartItemsState.reduce((acc, item) => acc + item.price * item.quantity, 0))}</p>
                 </div>
                 <div className="flex justify-between font-medium">
                   <p>
                     SUBTOTAL ({cartItemsState.length} ITEM{cartItemsState.length > 1 ? "S" : ""}):
                   </p>
-                  <p>₱{subtotal.toFixed(2)}</p>
+                  <p>₱{formatPrice(subtotal)}</p>
                 </div>
                 <div className="flex justify-between">
                   <p className="text-gray-600">COD FEE:</p>
@@ -433,7 +537,7 @@ function Checkout() {
                 <div className="border-t pt-3 mt-3">
                   <div className="flex justify-between font-bold text-lg">
                     <p>ORDER TOTAL:</p>
-                    <p>₱{subtotal.toFixed(2)}</p>
+                    <p>₱{formatPrice(subtotal)}</p>
                   </div>
                 </div>
 
@@ -444,16 +548,33 @@ function Checkout() {
                   </div>
                 )}
 
+                {!termsAccepted && (
+                  <div className="bg-amber-50 text-amber-600 p-3 rounded text-sm flex items-center mt-3">
+                    <AlertCircle size={16} className="mr-2" />
+                    Please accept the terms and conditions to proceed.
+                  </div>
+                )}
+
                 <button
                   onClick={handleCheckout}
-                  disabled={isLoading || hasStockIssue}
+                  disabled={isLoading || hasStockIssue || !addressSaved || isAddressLoading || !termsAccepted}
                   className={`w-full font-medium py-3 rounded-md mt-4 transition duration-150 flex items-center justify-center ${
-                    isLoading || hasStockIssue
+                    isLoading || hasStockIssue || !addressSaved || isAddressLoading || !termsAccepted
                       ? "bg-gray-400 text-white cursor-not-allowed"
                       : "bg-black hover:bg-gray-800 text-white"
                   }`}
                 >
-                  {isLoading ? "Placing Order..." : hasStockIssue ? "Adjust Quantities First" : "Place Order"}
+                  {isLoading
+                    ? "Placing Order..."
+                    : isAddressLoading
+                      ? "Loading Address..."
+                      : hasStockIssue
+                        ? "Adjust Quantities First"
+                        : !addressSaved
+                          ? "Add Shipping Address First"
+                          : !termsAccepted
+                            ? "Accept Terms to Continue"
+                            : "Place Order"}
                 </button>
               </div>
             </div>
@@ -552,6 +673,86 @@ function Checkout() {
                 className="flex items-center px-4 py-2 bg-black text-white rounded-md hover:bg-gray-700 transition duration-150"
               >
                 <Save className="mr-2" size={18} /> Save Address
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-xl">Terms and Conditions</h3>
+              <button onClick={() => setShowTermsModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="border-t pt-4 space-y-4 text-sm">
+              <h4 className="font-bold text-lg">No Refund Policy</h4>
+              <p>
+                By placing an order with us, you acknowledge and agree that all sales are final. We do not offer refunds
+                for any reason once an order has been placed and processed.
+              </p>
+
+              <h4 className="font-bold">Order Cancellation</h4>
+              <p>
+                Orders cannot be cancelled once they have been confirmed and payment has been processed. Please ensure
+                that all details of your order are correct before proceeding with checkout.
+              </p>
+
+              <h4 className="font-bold">Product Information</h4>
+              <p>
+                We strive to display our products as accurately as possible. However, colors may appear differently on
+                different screens. By accepting these terms, you acknowledge that minor variations in appearance are not
+                grounds for return or refund.
+              </p>
+
+              <h4 className="font-bold">Delivery</h4>
+              <p>
+                Delivery times are estimates only. We are not responsible for delays caused by shipping carriers or
+                circumstances beyond our control. By accepting these terms, you agree that delivery delays are not
+                grounds for order cancellation or refund.
+              </p>
+
+              <h4 className="font-bold">Damaged Items</h4>
+              <p>
+                In the rare event that an item arrives damaged, you must notify us within 24 hours of receipt with clear
+                photographic evidence. We may, at our sole discretion, offer a replacement if stock is available. No
+                monetary refunds will be provided.
+              </p>
+
+              <h4 className="font-bold">Privacy Policy</h4>
+              <p>
+                By placing an order, you consent to our collection and use of your personal information as outlined in
+                our Privacy Policy. We will never sell your information to third parties.
+              </p>
+
+              <div className="border-t pt-4 mt-4">
+                <p className="font-bold text-red-600">By accepting these terms, you acknowledge that:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>All sales are final and non-refundable</li>
+                  <li>You have reviewed your order details carefully</li>
+                  <li>You understand our delivery and damage policies</li>
+                  <li>You consent to our privacy practices</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6 space-x-3">
+              <button
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition duration-150"
+              >
+                Decline
+              </button>
+              <button
+                onClick={handleAcceptTerms}
+                className="flex items-center px-4 py-2 bg-black text-white rounded-md hover:bg-gray-700 transition duration-150"
+              >
+                <CheckCircle2 className="mr-2" size={18} /> Accept Terms
               </button>
             </div>
           </div>

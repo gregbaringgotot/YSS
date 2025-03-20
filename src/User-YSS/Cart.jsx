@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Trash2, Minus, Plus, ChevronDown } from "lucide-react"
@@ -230,6 +228,13 @@ function Cart() {
     return item.quantity > availableStock
   })
 
+  const formatPrice = (price) => {
+    return price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   // Don't display the cart if loading is true or no cart items are available
   if (loading || cartItems.length === 0) {
     return (
@@ -319,7 +324,7 @@ function Cart() {
                   </div>
 
                   {/* Price */}
-                  <div className="hidden md:block col-span-2 text-center">₱{item.price.toFixed(2)}</div>
+                  <div className="hidden md:block col-span-2 text-center">₱{formatPrice(item.price)}</div>
 
                   {products[item.id]?.stocks?.[item.size] < item.quantity && (
                     <div className="col-span-12 md:col-start-7 md:col-span-6 bg-red-50 text-red-600 p-2 rounded text-sm mt-2">
@@ -354,7 +359,7 @@ function Cart() {
                   </div>
 
                   {/* Total */}
-                  <div className="col-span-2 text-center font-medium">₱{(item.price * item.quantity).toFixed(2)}</div>
+                  <div className="col-span-2 text-center font-medium">₱{formatPrice(item.price * item.quantity)}</div>
                 </div>
               ))}
             </div>
@@ -371,7 +376,7 @@ function Cart() {
                 <span className="text-gray-600">
                   Subtotal ({cartItems.reduce((acc, item) => acc + item.quantity, 0)} items)
                 </span>
-                <span>₱{subtotal.toFixed(2)}</span>
+                <span>₱{formatPrice(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
@@ -382,7 +387,7 @@ function Cart() {
             <div className="border-t pt-4 mb-6">
               <div className="flex justify-between font-bold text-lg">
                 <span>ESTIMATED TOTAL</span>
-                <span>₱{subtotal.toFixed(2)}</span>
+                <span>₱{formatPrice(subtotal)}</span>
               </div>
             </div>
 

@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { Eye, EyeOff } from "lucide-react"
 import { auth, db } from "../Database/Firebase"
