@@ -92,7 +92,12 @@ function App() {
         {/* Catch-all route for non-existent paths */}
         <Route path="*" element={<Navigate to="/" />} />
       </>
-    )
+    ),
+
+    {
+      basename: "/YSS",
+    }
+
   );
 
   return (
