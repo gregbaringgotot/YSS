@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { Truck, Edit, X, Save, ShoppingCart, Minus, Plus, BanknoteIcon, AlertCircle, CheckCircle2 } from "lucide-react"
